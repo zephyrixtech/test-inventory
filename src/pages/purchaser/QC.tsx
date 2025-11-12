@@ -9,7 +9,7 @@ import { inventoryService } from '@/services/inventoryService';
 import { qualityCheckService } from '@/services/qualityCheckService';
 import type { Item } from '@/types/backend';
 
-export const QualityControlPage = () => {
+const QualityControlPage = () => {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [remarks, setRemarks] = useState<Record<string, string>>({});
@@ -145,4 +145,4 @@ export const QualityControlPage = () => {
     </div>
   );
 };
-
+export default QualityControlPage

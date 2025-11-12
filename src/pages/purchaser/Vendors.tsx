@@ -57,7 +57,7 @@ const vendorStatusOptions = [
   { label: 'Inactive', value: 'inactive' }
 ];
 
-export const VendorsPage = () => {
+const VendorsPage = () => {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -386,4 +386,6 @@ export const VendorsPage = () => {
     </div>
   );
 };
+
+export default VendorsPage;
 

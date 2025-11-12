@@ -149,7 +149,13 @@ export function LoginForm({ className, ...props }) {
       navigate("/dashboard");
     } catch (error) {
       console.error("Login error:", error);
-      const message = error?.message || "Invalid email or password.";
+      let message = error?.message || "Invalid email or password.";
+      
+      // Check if the account is locked and provide a more specific message
+      if (message.includes("locked")) {
+        message = "Your account is locked due to too many failed attempts. Please contact an administrator or use the forgot password feature.";
+      }
+      
       toast.error(message);
       dispatch(setError(message));
       clearSession();

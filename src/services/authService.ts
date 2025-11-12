@@ -18,7 +18,16 @@ export interface RegisterPayload {
 
 export const authService = {
   async login(payload: LoginPayload) {
-    return apiClient.post<ApiResponse<AuthResponse>>('/auth/login', payload);
+    try {
+      const response = await apiClient.post<ApiResponse<AuthResponse>>('/auth/login', payload);
+      return response;
+    } catch (error: any) {
+      // Provide more specific error messages
+      if (error.response?.data?.error?.message) {
+        throw new Error(error.response.data.error.message);
+      }
+      throw error;
+    }
   },
 
   async me() {
@@ -29,4 +38,3 @@ export const authService = {
     return apiClient.post<ApiResponse<{ success: boolean }>>('/auth/logout', { refreshToken });
   }
 };
-

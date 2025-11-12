@@ -47,6 +47,8 @@ import AuthRedirectPage from '@/pages/auth/authRedirect';
 import PurchaseReturnRequests from '@/pages/purchaseReturnRequest/PurchaseReturnRequests';
 import PurchaseReturnView from '@/pages/purchaseReturnRequest/PurchaseReturnView';
 import CurrencyRatesPage from '@/pages/administration/CurrencyRatesPage';
+import QualityControlPage from '@/pages/purchaser/QC';
+
 
 const protectedRoutes = [
   { path: '', element: <InventoryDashboard />, module: 'Dashboard' },
@@ -102,6 +104,7 @@ const protectedRoutes = [
   { path: 'customer-management/add', element: <CustomerForm />, module: 'Customer Master' },
   { path: 'customer-management/edit/:id', element: <CustomerForm />, module: 'Customer Master' },
   { path: 'customer-management/view/:id', element: <CustomerView />, module: 'Customer Master' },
+  { path: 'purchaser/qc', element: <QualityControlPage />, module: 'Quality Control' },
 ];
 
 const unprotectedRoutes = [
