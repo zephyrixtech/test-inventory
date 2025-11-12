@@ -45,10 +45,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { supabase } from "@/Utils/types/supabaseClient";
 import { ISupplierManagement } from "@/Utils/constants";
-import { exportSupabaseTableToCSV } from '@/Utils/csvExport';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { fetchSuppliers, fetchSupplierById, deleteSupplier as deleteSupplierStatic, simulateRPC } from '@/services/staticDataService';
 
 type SortField = 'supplier_id' | 'supplier_name' | 'email' | 'phone' | 'contact_person' | 'status';
 type SortDirection = 'asc' | 'desc' | null;
@@ -123,45 +122,19 @@ export default function SupplierManagement() {
     return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
   };
 
-  const fetchSuppliers = async () => {
+  const fetchSuppliersData = async () => {
     setIsFetching(true);
-    // Get company_id from localStorage userData
-    const user = localStorage.getItem('userData');
-    const userData = user ? JSON.parse(user) : null;
-    const companyId = userData?.company_id || '';
-
     try {
-      let query = supabase
-        .from("supplier_mgmt")
-        .select("*", { count: "exact" })
-        .eq("is_active", true)
-        .eq("company_id", companyId) // <-- Only fetch suppliers for this company
-        .range((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage - 1);
+      const { data, count, error } = await fetchSuppliers({
+        page: currentPage,
+        limit: itemsPerPage,
+        searchQuery: searchQuery || undefined,
+        statusFilter: statusFilter !== "all" ? statusFilter : undefined,
+        contactFilter: contactFilter !== "all" ? contactFilter : undefined,
+        sortField: sortConfig.field || undefined,
+        sortDirection: sortConfig.direction || undefined,
+      });
 
-      if (searchQuery) {
-        const sanitizedQuery = searchQuery.replace(/[%_]/g, '');
-        const searchConditions = [
-          `supplier_name.ilike.%${sanitizedQuery}%`,
-          `supplier_id.ilike.%${sanitizedQuery}%`,
-        ];
-        query = query.or(searchConditions.join(','));
-      }
-
-      if (statusFilter !== "all") {
-        query = query.eq("status", statusFilter);
-      }
-
-      if (contactFilter !== "all") {
-        query = query.eq("contact_person", contactFilter);
-      }
-
-      if (sortConfig.field && sortConfig.direction) {
-        query = query.order(sortConfig.field, {
-          ascending: sortConfig.direction === 'asc',
-        });
-      }
-
-      const { data, error, count } = await query;
       if (error) throw error;
 
       setSuppliers(data as ISupplierManagement[]);
@@ -175,78 +148,63 @@ export default function SupplierManagement() {
   };
 
   const exportSuppliersToCSV = async () => {
-    const user = JSON.parse(localStorage.getItem('userData') || '{}');
-
-    await exportSupabaseTableToCSV<ISupplierManagement>({
-      reportTitle: 'Suppliers Data',
-      headers: ['Supplier ID', 'Supplier Name', 'Email', 'Phone Number', 'Contact Person', 'Status'],
-      rowMapper: (supplier: any) => [
-        `"${supplier.supplier_id}"`,
-        `"${supplier.supplier_name}"`,
-        `"${supplier.email}"`,
-        `"${supplier.phone}"`,
-        `"${supplier.contact_person}"`,
-        `"${supplier.status}"`,
-      ],
-      supabaseClient: supabase,
-      fetcher: async () => {
-        let query = supabase
-          .from('supplier_mgmt')
-          .select('*')
-          .eq('is_active', true)
-          .eq('company_id', user?.company_id || '');
-
-        if (searchQuery) {
-          const sanitizedQuery = searchQuery.replace(/[%_]/g, '');
-          const searchConditions = [
-            `supplier_name.ilike.%${sanitizedQuery}%`,
-            `supplier_id.ilike.%${sanitizedQuery}%`,
-          ];
-          query = query.or(searchConditions.join(','));
-        }
-
-        if (statusFilter !== 'all') {
-          query = query.eq('status', statusFilter);
-        }
-
-        if (contactFilter !== 'all') {
-          query = query.eq('contact_person', contactFilter);
-        }
-
-        if (sortConfig.field && sortConfig.direction) {
-          query = query.order(sortConfig.field, {
-            ascending: sortConfig.direction === 'asc',
-          });
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-        return data as ISupplierManagement[];
-      },
-      onError: (err: { message: any; }) => toast.error(`Failed to export suppliers: ${err.message}`),
-    });
-  };
-
-  const fetchUniqueContacts = async () => {
-    // Get company_id from localStorage userData
-    const user = localStorage.getItem('userData');
-    const userData = user ? JSON.parse(user) : null;
-    const companyId = userData?.company_id || '';
-
     try {
-      const { data, error } = await supabase
-        .from("supplier_mgmt")
-        .select("contact_person")
-        .eq("is_active", true)
-        .eq("company_id", companyId) // <-- Only fetch contacts for this company
-        .order("contact_person", { ascending: true })
-        .limit(100);
+      // Fetch all suppliers for export
+      const { data: allSuppliers, error } = await fetchSuppliers({
+        page: 1,
+        limit: 10000, // Large limit to get all suppliers
+        searchQuery: searchQuery || undefined,
+        statusFilter: statusFilter !== "all" ? statusFilter : undefined,
+        contactFilter: contactFilter !== "all" ? contactFilter : undefined,
+        sortField: sortConfig.field || undefined,
+        sortDirection: sortConfig.direction || undefined,
+      });
 
       if (error) throw error;
 
+      // Convert to CSV
+      const csvHeaders = ['Supplier ID', 'Supplier Name', 'Email', 'Phone Number', 'Contact Person', 'Status'];
+      const csvRows = allSuppliers.map((supplier: ISupplierManagement) => [
+        supplier.supplier_id || '',
+        supplier.supplier_name || '',
+        supplier.email || '',
+        supplier.phone || '',
+        supplier.contact_person || '',
+        supplier.status || '',
+      ]);
+
+      // Create CSV content
+      const csvContent = [
+        csvHeaders.join(','),
+        ...csvRows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ].join('\n');
+
+      // Download CSV
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'suppliers-data.csv';
+      a.click();
+      window.URL.revokeObjectURL(url);
+
+      toast.success('Suppliers exported successfully');
+    } catch (err: any) {
+      toast.error(`Failed to export suppliers: ${err.message}`);
+    }
+  };
+
+  const fetchUniqueContacts = async () => {
+    try {
+      // Fetch all suppliers to get unique contacts
+      const { data: allSuppliers } = await fetchSuppliers({
+        page: 1,
+        limit: 10000,
+      });
+
       const contacts = Array.from(
         new Set(
-          data
+          allSuppliers
             .map((item: any) => item.contact_person)
             .filter(Boolean)
         )
@@ -267,7 +225,7 @@ export default function SupplierManagement() {
     setSortConfig({ field: null, direction: null });
   };
 
-  const debouncedFetchSuppliers = debounce(fetchSuppliers, 300);
+  const debouncedFetchSuppliers = debounce(fetchSuppliersData, 300);
 
   useEffect(() => {
     debouncedFetchSuppliers();
@@ -290,8 +248,7 @@ export default function SupplierManagement() {
     const fetchAllPOsupplierIds = async () => {
       if (!companyId) return;
       try {
-        const { data, error } = await supabase
-          .rpc('get_supplier_ids_from_purchase_orders', { p_company_id: companyId });
+        const { data, error } = await simulateRPC('get_supplier_ids_from_purchase_orders', { p_company_id: companyId });
 
         if (error) throw error;
 
@@ -300,7 +257,6 @@ export default function SupplierManagement() {
         }
       } catch (error) {
         console.error("Error fetchAllPOsupplierIds:", error);
-        // toast.error("Failed to fetch supplier ids.", { position: "top-right" });
         setPurchaseOrderSupplierIds([]);
       }
     }
@@ -312,51 +268,15 @@ export default function SupplierManagement() {
     if (!supplierToDelete) return;
     setIsDeleting(true);
     try {
-      const { data: supplierExists, error: supplierError } = await supabase
-        .from("supplier_mgmt")
-        .select("id")
-        .eq("id", supplierToDelete.id)
-        .single();
+      const { error } = await deleteSupplierStatic(supplierToDelete.id);
 
-      if (supplierError || !supplierExists) {
-        throw new Error("Supplier not found");
-      }
-
-      const { error: supplierUpdateError } = await supabase
-        .from("supplier_mgmt")
-        .update({ is_active: false })
-        .eq("id", supplierToDelete.id);
-
-      if (supplierUpdateError) throw supplierUpdateError;
-
-      const { error: itemsUpdateError } = await supabase
-        .from("supplier_items")
-        .update({ is_active: false })
-        .eq("supplier_id", supplierToDelete.id);
-
-      if (itemsUpdateError) throw itemsUpdateError;
+      if (error) throw error;
 
       setSuppliers((prev) => prev.filter((supplier) => supplier.id !== supplierToDelete.id));
       setTotalItems((prev) => prev - 1);
       fetchUniqueContacts();
+      fetchSuppliersData(); // Refresh the list
 
-      // Creating system log
-      const systemLogs = {
-        company_id: companyId,
-        transaction_date: new Date().toISOString(),
-        module: 'Supplier Management',
-        scope: 'Delete',
-        key: `${supplierToDelete.supplier_id}`,
-        log: `Supplier ${supplierToDelete.supplier_id} deleted.`,
-        action_by: userData?.id,
-        created_at: new Date().toISOString(),
-      }
-
-      const { error: systemLogError } = await supabase
-        .from('system_log')
-        .insert(systemLogs);
-
-      if (systemLogError) throw systemLogError;
       toast.success("Supplier deleted successfully", { position: "top-right" });
     } catch (error) {
       console.error("Error deleting supplier or items:", error);

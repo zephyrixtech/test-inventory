@@ -50,30 +50,66 @@ import {
   DialogTitle,
   DialogClose,
 } from '@/components/ui/dialog';
-// import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import toast from 'react-hot-toast';
-import { IUser, IRole } from '@/Utils/constants';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { exportSupabaseTableToCSV } from '@/Utils/csvExport';
-import { fetchUsers, fetchRoles as fetchRolesStatic, deleteUser as deleteUserStatic } from '@/services/staticDataService';
 
-// Extended user interface that includes the role information
-interface ExtendedUser extends IUser {
-  role: {
-    id: string | null;
-    role_name: string;
-  };
-}
+// Static data instead of API calls
+const staticUsers = [
+  {
+    id: "user001",
+    first_name: "John",
+    last_name: "Doe",
+    email: "john.doe@example.com",
+    role_id: "role001",
+    status: "active",
+    failed_attempts: 0
+  },
+  {
+    id: "user002",
+    first_name: "Jane",
+    last_name: "Smith",
+    email: "jane.smith@example.com",
+    role_id: "role002",
+    status: "active",
+    failed_attempts: 0
+  },
+  {
+    id: "user003",
+    first_name: "Robert",
+    last_name: "Johnson",
+    email: "robert.johnson@example.com",
+    role_id: "role003",
+    status: "inactive",
+    failed_attempts: 3
+  },
+  {
+    id: "user004",
+    first_name: "Emily",
+    last_name: "Williams",
+    email: "emily.williams@example.com",
+    role_id: "role001",
+    status: "active",
+    failed_attempts: 0
+  },
+  {
+    id: "user005",
+    first_name: "Michael",
+    last_name: "Brown",
+    email: "michael.brown@example.com",
+    role_id: "role004",
+    status: "inactive",
+    failed_attempts: 1
+  }
+];
+
+const staticRoles = [
+  { id: "role001", name: "Admin" },
+  { id: "role002", name: "Manager" },
+  { id: "role003", name: "User" },
+  { id: "role004", name: "Super Admin" }
+];
 
 // Sort configuration
-type SortField = 'first_name' | 'email' | 'last_name';
-type SortDirection = 'asc' | 'desc' | null;
-
-interface SortConfig {
-  field: SortField | null;
-  direction: SortDirection;
-}
-
 const statusColorMap = {
   active: 'bg-green-100 text-green-800 border-green-300',
   inactive: 'bg-amber-100 text-amber-800 border-amber-300',
@@ -87,26 +123,26 @@ export const UsersManagement = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [sortConfig, setSortConfig] = useState<SortConfig>({
+  const [sortConfig, setSortConfig] = useState({
     field: 'first_name',
     direction: 'asc'
   });
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterRole, setFilterRole] = useState('all');
-  const [users, setAllUsers] = useState<ExtendedUser[]>([]);
-  const [roles, setRoles] = useState<IRole[]>([]);
+  const [users, setAllUsers] = useState([]);
+  const [roles, setRoles] = useState(staticRoles);
   const [pagination, setPagination] = useState({
-    total: 0,
-    totalPages: 0
+    total: staticUsers.length,
+    totalPages: Math.ceil(staticUsers.length / itemsPerPage)
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [userToDelete, setUserToDelete] = useState<IUser>();
-  const [usersInActiveStores, setUsersInActiveStores] = useState<Set<string>>(new Set());
+  const [userToDelete, setUserToDelete] = useState();
+  const [usersInActiveStores, setUsersInActiveStores] = useState(new Set());
 
   // Sort function
-  const handleSort = (field: SortField) => {
-    let direction: SortDirection = 'asc';
+  const handleSort = (field) => {
+    let direction = 'asc';
 
     if (sortConfig.field === field) {
       if (sortConfig.direction === 'asc') {
@@ -123,7 +159,7 @@ export const UsersManagement = () => {
   };
 
   // Get sort icon
-  const getSortIcon = (field: SortField) => {
+  const getSortIcon = (field) => {
     if (sortConfig.field !== field) {
       return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
     }
@@ -137,125 +173,130 @@ export const UsersManagement = () => {
     return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
   };
 
-  // Fetch all roles for the filter dropdown
-  const fetchRoles = async (): Promise<void> => {
-    try {
-      const { data: rolesData, error: rolesError } = await fetchRolesStatic();
-
-      if (rolesError) {
-        console.error("Roles fetch error:", rolesError);
-        throw rolesError;
-      }
-
-      setRoles(rolesData || []);
-    } catch (error: any) {
-      console.error("Fetch Roles Error =>", error.message || error);
-      toast.error("Failed to fetch roles: " + (error.message || "Unknown error"));
-    }
-  };
-
-  const fetchUsersInActiveStores = async (): Promise<void> => {
-    console.log('attempting to fetch users in active stores ');
-    try {
-      // Static version: return empty set (no active store users in mock data)
-      setUsersInActiveStores(new Set());
-    } catch (err: any) {
-      console.error('Exception in fetchUsersInActiveStores:', err.message);
-    }
-  };
-
-  const fetchAllUsers = async (): Promise<void> => {
+  // Filter and sort users
+  const processUsers = () => {
     setLoading(true);
-    try {
-      // First, get all roles to create a lookup map
-      const { data: rolesData, error: rolesError } = await fetchRolesStatic();
-
-      if (rolesError) {
-        console.error("Roles fetch error:", rolesError);
-        throw rolesError;
+    
+    // Simulate API delay
+    setTimeout(() => {
+      let filteredUsers = [...staticUsers];
+      
+      // Apply search filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        filteredUsers = filteredUsers.filter(user => 
+          (user.first_name && user.first_name.toLowerCase().includes(query)) ||
+          (user.last_name && user.last_name.toLowerCase().includes(query)) ||
+          (user.email && user.email.toLowerCase().includes(query))
+        );
       }
-
-      // Create a role lookup map with proper typing
-      const roleMap: Record<string, string> = {};
-      rolesData?.forEach((role: IRole) => {
-        roleMap[role.id] = role.name || 'Unnamed Role';
-      });
-
-      // Fetch users using static service
-      const { data, count, error } = await fetchUsers({
-        page: currentPage,
-        limit: itemsPerPage,
-        searchQuery: searchQuery.trim() || undefined,
-        filterStatus: filterStatus !== 'all' ? filterStatus : undefined,
-        filterRole: filterRole !== 'all' ? filterRole : undefined,
-        sortField: sortConfig.field || 'first_name',
-        sortDirection: sortConfig.direction || 'asc',
-      });
-
-      if (error) {
-        console.error("Users fetch error:", error);
-        throw error;
+      
+      // Apply status filter
+      if (filterStatus !== 'all') {
+        filteredUsers = filteredUsers.filter(user => user.status === filterStatus);
       }
-
-      const mappedUsers: ExtendedUser[] = (data || []).map((user: IUser) => ({
+      
+      // Apply role filter
+      if (filterRole !== 'all') {
+        filteredUsers = filteredUsers.filter(user => user.role_id === filterRole);
+      }
+      
+      // Apply sorting
+      if (sortConfig.field && sortConfig.direction) {
+        filteredUsers.sort((a, b) => {
+          const aValue = a[sortConfig.field];
+          const bValue = b[sortConfig.field];
+          
+          if (aValue < bValue) {
+            return sortConfig.direction === 'asc' ? -1 : 1;
+          }
+          if (aValue > bValue) {
+            return sortConfig.direction === 'asc' ? 1 : -1;
+          }
+          return 0;
+        });
+      }
+      
+      // Apply pagination
+      const total = filteredUsers.length;
+      const totalPages = Math.ceil(total / itemsPerPage);
+      const from = (currentPage - 1) * itemsPerPage;
+      const to = from + itemsPerPage;
+      const paginatedUsers = filteredUsers.slice(from, to);
+      
+      // Add role information to users
+      const roleMap = {};
+      staticRoles.forEach(role => {
+        roleMap[role.id] = role.name;
+      });
+      
+      const extendedUsers = paginatedUsers.map(user => ({
         ...user,
         role: {
           id: user.role_id,
           role_name: user.role_id ? (roleMap[user.role_id] || 'No Role') : 'No Role'
         }
       }));
-
-      setAllUsers(mappedUsers);
+      
+      setAllUsers(extendedUsers);
       setPagination({
-        total: count || 0,
-        totalPages: Math.ceil((count || 0) / itemsPerPage)
+        total,
+        totalPages
       });
-    } catch (error: any) {
-      console.error("Fetch Error =>", error.message || error);
-      toast.error("Failed to fetch users: " + (error.message || "Unknown error"));
-    } finally {
+      
       setLoading(false);
-    }
+    }, 300);
   };
 
-  const exportUsersToCSV = async () => {
+  // Export users to CSV
+  const exportUsersToCSV = () => {
     try {
-      // Fetch all users for export
-      const { data: allUsers, error } = await fetchUsers({
-        page: 1,
-        limit: 10000, // Large limit to get all users
-        searchQuery: searchQuery.trim() || undefined,
-        filterStatus: filterStatus !== 'all' ? filterStatus : undefined,
-        filterRole: filterRole !== 'all' ? filterRole : undefined,
-        sortField: sortConfig.field || 'first_name',
-        sortDirection: sortConfig.direction || 'asc',
-      });
-
-      if (error) throw error;
-
-      // Get roles for mapping
-      const { data: rolesData } = await fetchRolesStatic();
-      const roleMap: Record<string, string> = {};
-      rolesData?.forEach((role: IRole) => {
-        roleMap[role.id] = role.name || 'Unnamed Role';
-      });
-
-      // Convert to CSV
+      // Create CSV content
       const csvHeaders = ['First Name', 'Last Name', 'Email', 'Role', 'Status'];
-      const csvRows = allUsers.map((user: IUser) => [
+      
+      // Get all filtered users for export
+      let exportUsers = [...staticUsers];
+      
+      // Apply search filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        exportUsers = exportUsers.filter(user => 
+          (user.first_name && user.first_name.toLowerCase().includes(query)) ||
+          (user.last_name && user.last_name.toLowerCase().includes(query)) ||
+          (user.email && user.email.toLowerCase().includes(query))
+        );
+      }
+      
+      // Apply status filter
+      if (filterStatus !== 'all') {
+        exportUsers = exportUsers.filter(user => user.status === filterStatus);
+      }
+      
+      // Apply role filter
+      if (filterRole !== 'all') {
+        exportUsers = exportUsers.filter(user => user.role_id === filterRole);
+      }
+      
+      // Create role map
+      const roleMap = {};
+      staticRoles.forEach(role => {
+        roleMap[role.id] = role.name;
+      });
+      
+      const csvRows = exportUsers.map(user => [
         user.first_name || '',
         user.last_name || '',
         user.email || '',
         roleMap[user.role_id || ''] || 'No Role',
         user.status || '',
       ]);
-
+      
       // Create CSV content
       const csvContent = [
         csvHeaders.join(','),
         ...csvRows.map(row => row.map(cell => `"${cell}"`).join(','))
       ].join('\n');
-
+      
       // Download CSV
       const blob = new Blob([csvContent], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
@@ -264,45 +305,24 @@ export const UsersManagement = () => {
       a.download = 'users-data.csv';
       a.click();
       window.URL.revokeObjectURL(url);
-
+      
       toast.success('Users exported successfully');
-    } catch (err: any) {
+    } catch (err) {
       toast.error(`Failed to export users: ${err.message}`);
     }
   };
 
-  // Load roles and active store users on component mount
-  useEffect(() => {
-    fetchRoles();
-    fetchUsersInActiveStores();
-  }, []);
-
-  // Refetch users when filters change
-  useEffect(() => {
-    fetchAllUsers();
-  }, [currentPage, itemsPerPage, sortConfig, searchQuery, filterStatus, filterRole]);
-
-  const deleteUser = async () => {
+  // Delete user
+  const deleteUser = () => {
     if (!userToDelete) return;
-
-    try {
-      const { error } = await deleteUserStatic(userToDelete.id);
-
-      if (error) throw error;
-
-      toast.success("User deleted successfully!", { position: 'top-right' });
-      fetchAllUsers();
-      setIsDialogOpen(false);
-      setUserToDelete(undefined);
-    } catch (error: any) {
-      console.error("Delete error =>", error.message || error);
-      toast.error("Failed to delete user");
-      setIsDialogOpen(false);
-      setUserToDelete(undefined);
-    }
+    
+    toast.success("User deleted successfully!", { position: 'top-right' });
+    processUsers();
+    setIsDialogOpen(false);
+    setUserToDelete(undefined);
   };
 
-  const openDeleteDialog = (user: IUser) => {
+  const openDeleteDialog = (user) => {
     setUserToDelete(user);
     setIsDialogOpen(true);
   };
@@ -316,15 +336,15 @@ export const UsersManagement = () => {
     setSortConfig({ field: null, direction: null });
   };
 
-  // const getInitials = (firstName: string | null, lastName: string | null) => {
-  //   if (!firstName || !lastName) return '??';
-  //   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-  // };
-
-  const getStatusColor = (status: string | null) => {
+  const getStatusColor = (status) => {
     if (!status) return 'bg-gray-100 text-gray-800 border-gray-300';
-    return statusColorMap[status as keyof typeof statusColorMap] || 'bg-gray-100 text-gray-800';
+    return statusColorMap[status] || 'bg-gray-100 text-gray-800';
   };
+
+  // Process users when filters change
+  useEffect(() => {
+    processUsers();
+  }, [currentPage, itemsPerPage, sortConfig, searchQuery, filterStatus, filterRole]);
 
   return (
     <div className="p-6">
