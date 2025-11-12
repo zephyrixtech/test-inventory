@@ -147,7 +147,9 @@ export const UsersManagement = () => {
         throw rolesError;
       }
 
-      setRoles(rolesData || []);
+      const filteredRoles = (rolesData || []).filter((role: IRole) => role.name !== 'Super Admin');
+
+      setRoles(filteredRoles);
     } catch (error: any) {
       console.error("Fetch Roles Error =>", error.message || error);
       toast.error("Failed to fetch roles: " + (error.message || "Unknown error"));

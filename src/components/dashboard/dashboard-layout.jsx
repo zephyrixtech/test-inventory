@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, Home, Users, Package, Truck, LayoutTemplate, ChevronRight, Bell, LogOut, BadgeDollarSign, ChartNoAxesCombined, Store ,FileText, Workflow, ClipboardCheck, SquareChartGantt, Building2, Clock} from 'lucide-react';
+import { Menu, X, Home, Users, Package, Truck, LayoutTemplate, ChevronRight, Bell, LogOut, BadgeDollarSign, ChartNoAxesCombined, Store ,FileText, Workflow, ClipboardCheck, SquareChartGantt, Building2, Clock, Handshake, ShieldCheck, Boxes} from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -94,14 +94,20 @@ export const DashboardLayout = () => {
     { path: '/dashboard/customer-management', label: 'Customer Master', icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/itemConfigurator', label: 'Item Configurator', icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/item-master', label: 'Item Master', icon: <Package className="mr-3 h-4 w-4 flex-shrink-0" /> },
+    { path: '/dashboard/purchaser/vendors', label: 'Vendors', icon: <Handshake className="mr-3 h-4 w-4 flex-shrink-0" /> },
+    { path: '/dashboard/purchaser/qc', label: 'Quality Control', icon: <ShieldCheck className="mr-3 h-4 w-4 flex-shrink-0" /> },
+    { path: '/dashboard/purchaser/packing-lists', label: 'Packing Lists', icon: <Boxes className="mr-3 h-4 w-4 flex-shrink-0" /> },
+    { path: '/dashboard/purchaser/expenses', label: 'Daily Expenses', icon: <BadgeDollarSign className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/supplierManagement', label: 'Supplier Management', icon: <Truck className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/storeManagement', label: 'Store Management', icon: <Store className="mr-3 h-4 w-4 flex-shrink-0" /> },
+    { path: '/dashboard/store/stock', label: 'Store Stock', icon: <Store className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/purchaseOrderManagement', label: 'PurchaseOrder Management', icon: <FileText className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/inventoryManagement', label: 'Inventory Management', icon: <Package className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/invoice', label: 'Sales Invoice', icon: <BadgeDollarSign className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/reports', label: 'Reports', icon: <ChartNoAxesCombined className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/workflow-config', label: 'Workflow Configuration', icon: <Workflow className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/administration', label: 'Administration', icon: <Building2 className="mr-3 h-4 w-4 flex-shrink-0" /> },
+    { path: '/dashboard/administration/currency', label: 'Currency Rates', icon: <Building2 className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/purchase-order-approvals', label: 'Purchase Order Approvals', icon: <ClipboardCheck className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/return-request', label: 'Returns Management', icon: <SquareChartGantt className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/purchase-order-return-approvals', label: 'Purchase Return Requests', icon: <SquareChartGantt className="mr-3 h-4 w-4 flex-shrink-0" /> },

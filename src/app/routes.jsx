@@ -46,6 +46,7 @@ import { RoleManagement } from '@/pages/management/roleManagement/RoleManagement
 import AuthRedirectPage from '@/pages/auth/authRedirect';
 import PurchaseReturnRequests from '@/pages/purchaseReturnRequest/PurchaseReturnRequests';
 import PurchaseReturnView from '@/pages/purchaseReturnRequest/PurchaseReturnView';
+import CurrencyRatesPage from '@/pages/administration/CurrencyRatesPage';
 
 const protectedRoutes = [
   { path: '', element: <InventoryDashboard />, module: 'Dashboard' },
@@ -92,6 +93,7 @@ const protectedRoutes = [
   { path: 'return-form/view/:id', element: <ReturnForm />, module: 'Item Master' },
   { path: 'return-eligible-purchase-orders', element: <ReturnEligiblePOs />, module: 'Returns Eligible' },
   { path: 'administration', element: <CompanyAdministration />, module: 'Administration' },
+  { path: 'administration/currency', element: <CurrencyRatesPage />, module: 'Administration' },
   { path: 'category-master', element: <CategoryManagement />, module: 'Category Master' },
   { path: 'category-master/add', element: <CategoryForm />, module: 'Category Master' },
   { path: 'category-master/edit/:id', element: <CategoryForm />, module: 'Category Master' },

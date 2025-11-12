@@ -52,3 +52,30 @@ export default tseslint.config({
   },
 })
 ```
+
+## Environment Setup
+
+Create a `.env` file at the project root with the API base URL for the new Node/Express backend:
+
+```
+VITE_API_URL=http://localhost:5000/api/v1
+```
+
+Install dependencies and start the development server:
+
+```
+npm install
+npm run dev
+```
+
+The frontend now integrates directly with the backend for inventory, vendor onboarding, quality control, packing lists, daily expenses, store stock, and manual currency management. Make sure the backend is running (and seeded) before browsing these screens.
+
+### Developer Super Admin
+
+A hidden "Super Admin" role exists only for developer troubleshooting. Seed it from the backend project:
+
+```
+npm run seed:superadmin
+```
+
+Credentials: `superadmin@gmail.com` / `superadmin`. This account will not appear in UI role selectors but retains full API access.
