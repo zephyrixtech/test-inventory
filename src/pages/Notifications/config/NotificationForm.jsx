@@ -1,100 +1,90 @@
-import { ArrowLeft, Bell, X, AlertCircle, Users, User, Calendar, MessageSquare, Send } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
-import toast from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/Utils/types/supabaseClient';
-import { IUser } from '@/Utils/constants';
-import { getLocalDateTime } from '@/Utils/commonFun';
-import { triggerNotificationUpdate } from '@/Utils/notificationEvents';
+import React, { useState } from "react";
+import {
+  ArrowLeft,
+  Bell,
+  X,
+  AlertCircle,
+  Users,
+  User,
+  Calendar,
+  MessageSquare,
+  Send,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 
-// Form validation and types
-interface NotificationFormValues {
-  notificationTo: 'all' | 'specific' | '';
-  selectedUsers: string[];
-  message: string;
-  expiryDate: string;
-}
+// Mock Active Users
+const mockActiveUsers = [
+  { id: "1", first_name: "Alice", last_name: "Johnson", email: "alice@company.com" },
+  { id: "2", first_name: "Bob", last_name: "Smith", email: "bob@company.com" },
+  { id: "3", first_name: "Carol", last_name: "Davis", email: "carol@company.com" },
+  { id: "4", first_name: "David", last_name: "Wilson", email: "david@company.com" },
+  { id: "5", first_name: "Eve", last_name: "Brown", email: "eve@company.com" },
+];
 
 const CustomNotificationForm = () => {
-  const [activeUsers, setActiveUsers] = useState<IUser[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState<NotificationFormValues>({
-    notificationTo: '',
+  const [formData, setFormData] = useState({
+    notificationTo: "",
     selectedUsers: [],
-    message: '',
-    expiryDate: '',
+    message: "",
+    expiryDate: "",
   });
-  const [errors, setErrors] = useState<Partial<Record<keyof NotificationFormValues, string>>>({});
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
-  const user = localStorage.getItem("userData");
-  const userData = JSON.parse(user || '{}');
-  const companyId = userData?.company_id || null;
 
-  useEffect(() => {
-    if (!companyId) return;
-
-    const fetchActiveUsers = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('user_mgmt')
-          .select('*')
-          .eq('company_id', companyId)
-          .eq('is_active', true);
-
-        if (error) {
-          console.error("Active users fetch error:", error);
-          throw error;
-        }
-
-        if (data && data.length > 0) {
-          setActiveUsers(data)
-        }
-      } catch (error: any) {
-        console.error("Fetch Error =>", error.message || error);
-        toast.error("Failed to fetch active users: " + (error.message || "Unknown error"));
-      }
-    }
-
-    fetchActiveUsers();
-  }, []);
+  const activeUsers = mockActiveUsers;
 
   const handleNavigateBack = () => {
     navigate(-1);
   };
 
-  const validateForm = (): boolean => {
-    const newErrors: Partial<Record<keyof NotificationFormValues, string>> = {};
+  const validateForm = () => {
+    const newErrors = {};
 
     if (!formData.notificationTo) {
-      newErrors.notificationTo = 'Please select notification recipients';
+      newErrors.notificationTo = "Please select notification recipients";
     }
 
     if (!formData.message || formData.message.length < 10) {
-      newErrors.message = formData.message ? 'Message must be at least 10 characters' : 'Message is required';
+      newErrors.message = formData.message
+        ? "Message must be at least 10 characters"
+        : "Message is required";
     }
 
-    if (formData.notificationTo === 'all' && !formData.expiryDate) {
-      newErrors.expiryDate = 'Expiry date is mandatory for system-wide notifications';
+    if (formData.notificationTo === "all" && !formData.expiryDate) {
+      newErrors.expiryDate = "Expiry date is mandatory for system-wide notifications";
     }
 
-    if (formData.notificationTo === 'specific' && formData.selectedUsers.length === 0) {
-      newErrors.selectedUsers = 'Please select at least one user for specific notifications';
+    if (formData.notificationTo === "specific" && formData.selectedUsers.length === 0) {
+      newErrors.selectedUsers = "Please select at least one user";
     }
 
     if (formData.expiryDate) {
       const selectedDate = new Date(formData.expiryDate);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-
       if (selectedDate <= today) {
-        newErrors.expiryDate = 'Expiry date must be in the future';
+        newErrors.expiryDate = "Expiry date must be in the future";
       }
     }
 
@@ -102,90 +92,60 @@ const CustomNotificationForm = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleUserSelection = (userId: string, checked: boolean) => {
+  const handleUserSelection = (userId, checked) => {
     if (checked) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        selectedUsers: [...prev.selectedUsers, userId]
+        selectedUsers: [...prev.selectedUsers, userId],
       }));
     } else {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        selectedUsers: prev.selectedUsers.filter(id => id !== userId)
+        selectedUsers: prev.selectedUsers.filter((id) => id !== userId),
       }));
     }
   };
 
   const selectAllUsers = () => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      selectedUsers: activeUsers.map(user => user.id)
+      selectedUsers: activeUsers.map((u) => u.id),
     }));
   };
 
   const deselectAllUsers = () => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      selectedUsers: []
+      selectedUsers: [],
     }));
   };
 
-  const handleSubmit = async () => {
-    if (!validateForm()) return;
+  const handleSubmit = () => {
+    if (!validateForm()) {
+      toast.error("Please fix the errors before submitting");
+      return;
+    }
 
     setIsSubmitting(true);
-    try {
-      const notifications = formData.selectedUsers.map((userId) => {
-        return {
-          assign_to: userId,
-          message: formData.message,
-          expiry_date: formData.expiryDate ? formData.expiryDate : null,
-          priority: 'High',
-          status: 'New',
-          created_at: getLocalDateTime(),
-          created_by: userData.id,
-          is_active: true,
-          acknowledged_at: null,
-          company_id: companyId,
-          entity_id: null,
-          alert_type: 'System Notification',
-        }
-      })
 
-      const { error } = await supabase
-        .from('system_notification')
-        .insert(notifications);
-
-      if (error) {
-        console.error("Active users fetch error:", error);
-        throw error;
-      }
-
-      toast.success('Notification created successfully!');
-      triggerNotificationUpdate();
-
-      // Reset form and navigate back
+    setTimeout(() => {
+      toast.success("Notification created successfully!");
       setFormData({
-        notificationTo: '',
+        notificationTo: "",
         selectedUsers: [],
-        message: '',
-        expiryDate: '',
+        message: "",
+        expiryDate: "",
       });
       setErrors({});
-      handleNavigateBack();
-
-    } catch (error) {
-      console.error('Error creating notification:', error);
-      toast.error('Error creating notification. Please try again.'); // Replace with proper error handling
-    } finally {
       setIsSubmitting(false);
-    }
+      handleNavigateBack();
+    }, 1000);
   };
 
   const getTomorrowDate = () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
+    return tomorrow.toISOString().split("T")[0];
   };
 
   return (
@@ -232,29 +192,34 @@ const CustomNotificationForm = () => {
             <div className="space-y-6">
               {/* Notification Recipients */}
               <div className="space-y-2 group">
-                <Label className={`${errors.notificationTo ? 'text-red-500' : 'text-gray-700'} group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}>
+                <Label
+                  className={`${
+                    errors.notificationTo ? "text-red-500" : "text-gray-700"
+                  } group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
+                >
                   <Users className="h-4 w-4" /> Notification To *
                 </Label>
                 <Select
-                  value={formData.notificationTo || ''}
+                  value={formData.notificationTo}
                   onValueChange={(value) => {
-                    setFormData(prev => ({
+                    setFormData((prev) => ({
                       ...prev,
-                      notificationTo: value as 'all' | 'specific',
-                      selectedUsers: value === 'all'
-                        ? activeUsers.map(u => u.id)   // store all IDs
-                        : [],
-                      expiryDate: value === 'specific' ? '' : prev.expiryDate
+                      notificationTo: value,
+                      selectedUsers:
+                        value === "all" ? activeUsers.map((u) => u.id) : [],
+                      expiryDate: value === "specific" ? "" : prev.expiryDate,
                     }));
-                    setErrors(prev => ({ ...prev, notificationTo: undefined }));
+                    setErrors((prev) => ({ ...prev, notificationTo: undefined }));
                   }}
                 >
                   <SelectTrigger
-                    className={`${errors.notificationTo
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                      : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
-                      } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 w-full ${formData.notificationTo ? 'border-blue-300' : ''
-                      }`}
+                    className={`${
+                      errors.notificationTo
+                        ? "border-red-300 focus:border-red-500 focus:ring-red-200"
+                        : "border-gray-200 focus:border-blue-500 focus:ring-blue-200"
+                    } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 w-full ${
+                      formData.notificationTo ? "border-blue-300" : ""
+                    }`}
                   >
                     <SelectValue placeholder="Select notification recipients" />
                   </SelectTrigger>
@@ -281,11 +246,15 @@ const CustomNotificationForm = () => {
                 )}
               </div>
 
-              {/* User Selection for Specific Notifications */}
-              {formData.notificationTo === 'specific' && (
+              {/* User Selection */}
+              {formData.notificationTo === "specific" && (
                 <div className="space-y-4 animate-in slide-in-from-top duration-300">
                   <div className="flex items-center justify-between">
-                    <Label className={`${errors.selectedUsers ? 'text-red-500' : 'text-gray-700'} flex items-center gap-1 font-medium`}>
+                    <Label
+                      className={`${
+                        errors.selectedUsers ? "text-red-500" : "text-gray-700"
+                      } flex items-center gap-1 font-medium`}
+                    >
                       <User className="h-4 w-4" /> Select Users *
                     </Label>
                     <div className="flex gap-2">
@@ -313,14 +282,24 @@ const CustomNotificationForm = () => {
                   <div className="border rounded-lg p-4 bg-gray-50 max-h-64 overflow-y-auto">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {activeUsers.map((user) => (
-                        <div key={user.id} className="flex items-center space-x-2 p-2 rounded hover:bg-white transition-colors">
+                        <div
+                          key={user.id}
+                          className="flex items-center space-x-2 p-2 rounded hover:bg-white transition-colors"
+                        >
                           <Checkbox
                             id={`user-${user.id}`}
                             checked={formData.selectedUsers.includes(user.id)}
-                            onCheckedChange={(checked) => handleUserSelection(user.id, checked === true)}
+                            onCheckedChange={(checked) =>
+                              handleUserSelection(user.id, checked === true)
+                            }
                           />
-                          <Label htmlFor={`user-${user.id}`} className="flex-1 cursor-pointer">
-                            <div className="font-medium text-gray-900">{user.first_name} {user.last_name}</div>
+                          <Label
+                            htmlFor={`user-${user.id}`}
+                            className="flex-1 cursor-pointer"
+                          >
+                            <div className="font-medium text-gray-900">
+                              {user.first_name} {user.last_name}
+                            </div>
                             <div className="text-sm text-gray-500">{user.email}</div>
                           </Label>
                         </div>
@@ -347,28 +326,32 @@ const CustomNotificationForm = () => {
               <div className="space-y-2 group">
                 <Label
                   htmlFor="message"
-                  className={`${errors.message ? 'text-red-500' : 'text-gray-700'} group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
+                  className={`${
+                    errors.message ? "text-red-500" : "text-gray-700"
+                  } group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
                 >
                   <MessageSquare className="h-4 w-4" /> Message *
                 </Label>
                 <Textarea
                   id="message"
                   placeholder={
-                    formData.notificationTo === 'all'
+                    formData.notificationTo === "all"
                       ? "e.g. System will be offline during 9:00 pm to 6:00 AM from 23rd Jan 2025 to 24th Jan 2025."
                       : "e.g. Please can you approve PO-202345; this is pending for a long time."
                   }
                   rows={4}
                   value={formData.message}
                   onChange={(e) => {
-                    setFormData(prev => ({ ...prev, message: e.target.value }));
-                    setErrors(prev => ({ ...prev, message: undefined }));
+                    setFormData((prev) => ({ ...prev, message: e.target.value }));
+                    setErrors((prev) => ({ ...prev, message: undefined }));
                   }}
-                  className={`${errors.message
-                    ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                    : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
-                    } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 resize-none ${formData.message ? 'border-blue-300' : ''
-                    }`}
+                  className={`${
+                    errors.message
+                      ? "border-red-300 focus:border-red-500 focus:ring-red-200"
+                      : "border-gray-200 focus:border-blue-500 focus:ring-blue-200"
+                  } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 resize-none ${
+                    formData.message ? "border-blue-300" : ""
+                  }`}
                 />
                 <div className="flex justify-between text-xs text-gray-500">
                   <span>Minimum 10 characters required</span>
@@ -386,13 +369,15 @@ const CustomNotificationForm = () => {
               <div className="space-y-2 group">
                 <Label
                   htmlFor="expiryDate"
-                  className={`${errors.expiryDate ? 'text-red-500' : 'text-gray-700'} group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
+                  className={`${
+                    errors.expiryDate ? "text-red-500" : "text-gray-700"
+                  } group-hover:text-blue-700 transition-colors duration-200 flex items-center gap-1 font-medium`}
                 >
                   <Calendar className="h-4 w-4" /> Expiry Date
-                  {formData.notificationTo === 'all' && (
+                  {formData.notificationTo === "all" && (
                     <span className="text-red-500 ml-1">*</span>
                   )}
-                  {formData.notificationTo === 'specific' && (
+                  {formData.notificationTo === "specific" && (
                     <span className="text-xs text-gray-500 ml-1">(Optional)</span>
                   )}
                 </Label>
@@ -402,16 +387,18 @@ const CustomNotificationForm = () => {
                   min={getTomorrowDate()}
                   value={formData.expiryDate}
                   onChange={(e) => {
-                    setFormData(prev => ({ ...prev, expiryDate: e.target.value }));
-                    setErrors(prev => ({ ...prev, expiryDate: undefined }));
+                    setFormData((prev) => ({ ...prev, expiryDate: e.target.value }));
+                    setErrors((prev) => ({ ...prev, expiryDate: undefined }));
                   }}
-                  className={`${errors.expiryDate
-                    ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                    : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
-                    } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${formData.expiryDate ? 'border-blue-300' : ''
-                    }`}
+                  className={`${
+                    errors.expiryDate
+                      ? "border-red-300 focus:border-red-500 focus:ring-red-200"
+                      : "border-gray-200 focus:border-blue-500 focus:ring-blue-200"
+                  } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 ${
+                    formData.expiryDate ? "border-blue-300" : ""
+                  }`}
                 />
-                {formData.notificationTo === 'all' && (
+                {formData.notificationTo === "all" && (
                   <p className="text-xs text-blue-600">
                     System-wide notifications require an expiry date for automatic cleanup
                   </p>
@@ -443,7 +430,7 @@ const CustomNotificationForm = () => {
                   className="bg-blue-600 hover:bg-blue-700 flex items-center gap-2 text-white transition-all duration-300 transform hover:scale-105 shadow-md hover:shadow-lg"
                 >
                   <Send className="h-4 w-4" />
-                  {isSubmitting ? 'Creating...' : 'Create Notification'}
+                  {isSubmitting ? "Creating..." : "Create Notification"}
                 </Button>
               </div>
             </div>
@@ -466,10 +453,9 @@ const CustomNotificationForm = () => {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 text-sm text-blue-800 mb-2">
                       <span className="font-semibold">
-                        {formData.notificationTo === 'all'
-                          ? 'System Notification (All Users)'
-                          : `User Notification (${formData.selectedUsers.length} users)`
-                        }
+                        {formData.notificationTo === "all"
+                          ? "System Notification (All Users)"
+                          : `User Notification (${formData.selectedUsers.length} users)`}
                       </span>
                       {formData.expiryDate && (
                         <span className="text-xs bg-blue-200 px-2 py-1 rounded">
@@ -478,7 +464,7 @@ const CustomNotificationForm = () => {
                       )}
                     </div>
                     <div className="text-gray-900">
-                      {formData.message || 'Your notification message will appear here...'}
+                      {formData.message || "Your notification message will appear here..."}
                     </div>
                   </div>
                 </div>

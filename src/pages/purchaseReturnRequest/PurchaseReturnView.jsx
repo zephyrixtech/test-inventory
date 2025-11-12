@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,234 +18,127 @@ import {
   Package,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { supabase } from "@/Utils/types/supabaseClient";
 
-interface ApprovalStatus {
-  status: string;
-  trail: string;
-  sequence_no: number;
-  isFinalized: boolean;
-  approvedBy?: string;
-  date?: string;
-  comment?: string;
-}
+// Static Dummy Data
+const mockReturnData = {
+  id: "pr-001",
+  return_number: "RET-2025-001",
+  supplier_name: "ABC Suppliers Ltd",
+  return_date: "2025-11-10T10:00:00Z",
+  total_items: 5,
+  total_value: 12500,
+  remark: "Damaged goods during transit",
+  approval_status: [
+    { status: "Created", trail: "Created", sequence_no: 0, date: "2025-11-08T09:00:00Z" },
+    { status: "Level 1 Approved", trail: "Approved", sequence_no: 1, approvedBy: "user-123", date: "2025-11-08T10:30:00Z", comment: "Looks good" },
+    { status: "Level 2 Approval Pending", trail: "Pending", sequence_no: 2 },
+    { status: "Level 2 Approved", trail: "Approved", sequence_no: 3, approvedBy: "user-124", date: "2025-11-09T14:20:00Z" },
+    { status: "Level 3 Approval Pending", trail: "Pending", sequence_no: 4 },
+  ],
+  created_by: "user-456",
+  purchase_order_id: "po-100",
+};
 
-interface PurchaseReturnData {
-  id: string;
-  return_number: string;
-  supplier_name?: string;
-  return_date: string;
-  total_items: number;
-  total_value: number;
-  approval_status: any[];
-  created_by: string;
-  purchase_order_id: string;
-  remark?: string;
-}
+// Mock user map
+const userMap = {
+  "user-123": "John Doe",
+  "user-124": "Jane Smith",
+  "user-456": "Mike Johnson",
+};
 
 function PurchaseReturnView() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams();
   const navigate = useNavigate();
-  const [approvalSteps, setApprovalSteps] = useState<ApprovalStatus[]>([]);
+  const [approvalSteps, setApprovalSteps] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [returnData, setReturnData] = useState<PurchaseReturnData | null>(null);
-  const [userMap, setUserMap] = useState<Record<string, string>>({});
+  const [returnData, setReturnData] = useState(null);
 
+  // Simulate loading static data
   useEffect(() => {
-    const fetchPurchaseReturn = async () => {
-      if (!id) {
-        setError("No Purchase Return ID provided.");
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      setError(null);
-      try {
-        // Fetch purchase return data with supplier information
-        const { data, error } = await supabase
-          .from("purchase_return")
-          .select(
-            `
-                        *,
-                        supplier_mgmt (
-                            supplier_name,
-                            email,
-                            address
-                        )
-                    `,
-          )
-          .eq("id", id)
-          .single();
-
-        if (error) throw error;
-
-        // Type guard: ensure approval_status is always an array of ApprovalStatus
-        let steps: ApprovalStatus[] = [];
-        if (Array.isArray(data.approval_status)) {
-          steps = data.approval_status
-            .filter(
-              (s: any) => s && typeof s === "object" && s.status && s.trail,
-            )
-            .map((s: any) => ({
-              status: s.status,
-              trail: s.trail,
-              sequence_no: s.sequence_no,
-              isFinalized: s.isFinalized,
-              approvedBy: s.approvedBy,
-              date: s.date,
-              comment: s.comment,
-            }));
-        }
-        setApprovalSteps(steps);
-
-        setReturnData({
-          id: data.id,
-          return_number: data.purchase_retrun_number || "",
-          supplier_name:
-            data.supplier_mgmt?.supplier_name || "Unknown Supplier",
-          return_date: data.return_date || "",
-          total_items: data.total_items || 0,
-          total_value: data.total_value || 0,
-          approval_status: Array.isArray(data.approval_status)
-            ? data.approval_status
-            : [],
-          created_by: data.created_by || "",
-          purchase_order_id: data.purchase_order_id || "",
-          remark: data.remark || undefined,
-        });
-
-        // Fetch user names for all unique approvedBy IDs
-        const userIds = Array.from(
-          new Set(
-            steps
-              .filter((s) => s.approvedBy && typeof s.approvedBy === "string")
-              .map((s) => s.approvedBy as string),
-          ),
-        ).filter(Boolean);
-
-        if (userIds.length > 0) {
-          const { data: usersData, error: usersError } = await supabase
-            .from("user_mgmt")
-            .select("id, first_name, last_name")
-            .in("id", userIds);
-          if (!usersError && Array.isArray(usersData)) {
-            const map: Record<string, string> = {};
-            usersData.forEach((u: any) => {
-              map[u.id] = `${u.first_name || ""} ${u.last_name || ""}`.trim();
-            });
-            setUserMap(map);
-          }
-        }
-      } catch (err: any) {
-        setError(err.message || "Failed to fetch purchase return.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchPurchaseReturn();
+    setTimeout(() => {
+      setReturnData(mockReturnData);
+      setApprovalSteps(mockReturnData.approval_status);
+      setLoading(false);
+    }, 600);
   }, [id]);
 
   // Get level icon
-  const getLevelIcon = (status: string, trail: string) => {
+  const getLevelIcon = (status, trail) => {
     if (status.includes("Created")) {
-      return (
-        <FileText
-          className={`w-6 h-6 ${trail === "Approved" ? "text-green-600" : "text-red-600"}`}
-        />
-      );
+      return <FileText className={`w-6 h-6 ${trail === "Approved" ? "text-green-600" : "text-red-600"}`} />;
     } else if (status.includes("Approved") && !status.includes("Level")) {
-      return (
-        <CheckCircle
-          className={`w-6 h-6 ${trail === "Approved" ? "text-green-600" : "text-red-600"}`}
-        />
-      );
+      return <CheckCircle className={`w-6 h-6 ${trail === "Approved" ? "text-green-600" : "text-red-600"}`} />;
     } else if (status.includes("Approved")) {
-      return (
-        <UserCheck
-          className={`w-6 h-6 ${trail === "Approved" ? "text-green-600" : "text-red-600"}`}
-        />
-      );
+      return <UserCheck className={`w-6 h-6 ${trail === "Approved" ? "text-green-600" : "text-red-600"}`} />;
     } else if (status.includes("Pending")) {
-      return (
-        <Clock
-          className={`w-6 h-6 ${trail === "Approved" ? "text-green-600" : "text-red-600"}`}
-        />
-      );
+      return <Clock className="w-6 h-6 text-blue-600" />;
     } else if (status.includes("Returned") || status.includes("Return")) {
-      return (
-        <Package
-          className={`w-6 h-6 ${trail === "Approved" ? "text-green-600" : "text-red-600"}`}
-        />
-      );
+      return <Package className="w-6 h-6 text-purple-600" />;
     } else if (status.includes("Issued")) {
-      return (
-        <CalendarCheck
-          className={`w-6 h-6 ${trail === "Approved" ? "text-green-600" : "text-red-600"}`}
-        />
-      );
+      return <CalendarCheck className="w-6 h-6 text-teal-600" />;
     } else {
       return <Award className="w-6 h-6 text-blue-600" />;
     }
   };
 
-  // Helper: Extract level number from status string
-  const getLevelNumber = (status: string) => {
+  // Extract level number
+  const getLevelNumber = (status) => {
     const match = status.match(/Level (\d+)/);
     return match ? parseInt(match[1], 10) : null;
   };
 
-  // Filter approval steps to show only the latest status for each level, stop at first rejection
-  const getDisplaySteps = (steps: ApprovalStatus[]) => {
-    const latestByLevel: Record<number, ApprovalStatus> = {};
-    let stopAtLevel: number | null = null;
+  // Filter steps: latest per level, stop at rejection
+  const getDisplaySteps = (steps) => {
+    const latestByLevel = {};
+    let stopAtLevel = null;
+
     for (const step of steps) {
       const level = getLevelNumber(step.status);
       if (level === null) continue;
-      // Always keep the latest (by sequence_no)
-      if (
-        !latestByLevel[level] ||
-        step.sequence_no > latestByLevel[level].sequence_no
-      ) {
+
+      if (!latestByLevel[level] || step.sequence_no > latestByLevel[level].sequence_no) {
         latestByLevel[level] = step;
       }
-      // If rejected, mark to stop at this level
-      if (
-        step.trail === "Rejected" &&
-        (stopAtLevel === null || level < stopAtLevel)
-      ) {
+
+      if (step.trail === "Rejected" && (stopAtLevel === null || level < stopAtLevel)) {
         stopAtLevel = level;
       }
     }
-    // Sort by level
-    const sortedLevels = Object.keys(latestByLevel)
-      .map(Number)
-      .sort((a, b) => a - b);
-    const display: ApprovalStatus[] = [];
+
+    const sortedLevels = Object.keys(latestByLevel).map(Number).sort((a, b) => a - b);
+    const display = [];
+
     for (const level of sortedLevels) {
       if (stopAtLevel !== null && level > stopAtLevel) break;
       display.push(latestByLevel[level]);
       if (latestByLevel[level].trail === "Rejected") break;
     }
+
     return display;
   };
 
   const displaySteps = getDisplaySteps(approvalSteps);
 
   // Calculate summary
-  const completedSteps = approvalSteps.filter(
-    (s) => s.trail === "Approved",
-  ).length;
+  const completedSteps = approvalSteps.filter((s) => s.trail === "Approved").length;
   const totalSteps = approvalSteps.length;
   const remainingSteps = totalSteps - completedSteps;
 
   // Format currency
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
     }).format(value);
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+    });
   };
 
   return (
@@ -257,9 +151,7 @@ function PurchaseReturnView() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() =>
-                    navigate("/dashboard/purchase-order-return-approvals")
-                  }
+                  onClick={() => navigate("/dashboard/purchase-order-return-approvals")}
                   className="hover:bg-blue-100 transition-colors duration-200 rounded-full"
                 >
                   <ArrowLeft className="h-5 w-5 text-blue-600" />
@@ -275,6 +167,7 @@ function PurchaseReturnView() {
               </div>
             </div>
           </CardHeader>
+
           <CardContent className="pt-6">
             <div className="space-y-8">
               {/* Purchase Return Info */}
@@ -305,7 +198,7 @@ function PurchaseReturnView() {
                         Return Date
                       </label>
                       <p className="text-base text-gray-900">
-                        {new Date(returnData.return_date).toLocaleDateString()}
+                        {formatDate(returnData.return_date)}
                       </p>
                     </div>
                     <div>
@@ -344,19 +237,14 @@ function PurchaseReturnView() {
                   Purchase Return Approval Workflow
                 </h2>
                 <p className="text-gray-600">
-                  Track the progress of your purchase return through each
-                  approval level
+                  Track the progress of your purchase return through each approval level
                 </p>
               </div>
 
-              {/* Loading/Error */}
+              {/* Loading */}
               {loading ? (
                 <div className="flex justify-center items-center py-12">
                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
-                </div>
-              ) : error ? (
-                <div className="text-center text-red-600 font-medium py-8">
-                  {error}
                 </div>
               ) : (
                 <>
@@ -364,15 +252,17 @@ function PurchaseReturnView() {
                   <div className="relative w-full pt-20 pb-6 min-h-[200px]">
                     {displaySteps.length > 0 ? (
                       <>
-                        {/* Horizontal Connection Line */}
+                        {/* Connection Line */}
                         <div className="absolute top-20 left-0 right-0 h-0.5 bg-gray-200 z-0"></div>
-                        {/* Steps Container */}
+
+                        {/* Steps */}
                         <div className="flex flex-row justify-center items-start w-full relative z-10 gap-6 md:gap-8 lg:gap-12 xl:gap-16">
                           {displaySteps.map((step, idx) => {
-                            const IconComponent = getLevelIcon(
-                              step.status,
-                              step.trail,
-                            );
+                            const IconComponent = getLevelIcon(step.status, step.trail);
+                            const isApproved = step.trail === "Approved";
+                            const isRejected = step.trail === "Rejected";
+                            const isPending = step.trail === "Pending";
+
                             return (
                               <div
                                 key={idx}
@@ -380,44 +270,36 @@ function PurchaseReturnView() {
                               >
                                 {/* Icon Circle */}
                                 <div
-                                  className={`w-12 h-12 rounded-full flex items-center justify-center ${step.trail === "Approved" ? "bg-green-100" : "bg-red-100"} border-2 border-white shadow-sm`}
-                                  style={{
-                                    zIndex: 2,
-                                    marginBottom: "0.5rem",
-                                    marginTop: "-1.5rem",
-                                  }}
+                                  className={`w-12 h-12 rounded-full flex items-center justify-center border-2 border-white shadow-sm ${
+                                    isApproved ? "bg-green-100" : isRejected ? "bg-red-100" : "bg-blue-100"
+                                  }`}
+                                  style={{ zIndex: 2, marginBottom: "0.5rem", marginTop: "-1.5rem" }}
                                 >
                                   {IconComponent}
                                 </div>
-                                {/* Message */}
+
+                                {/* Status Box */}
                                 <div
-                                  className={`px-2 py-2 rounded-lg text-xs font-medium text-center ${
-                                    step.trail === "Approved"
+                                  className={`px-2 py-2 rounded-lg text-xs font-medium text-center w-32 h-16 flex flex-col items-center justify-center mx-auto ${
+                                    isApproved
                                       ? "bg-green-100 text-green-800"
-                                      : step.trail === "Rejected"
-                                        ? "bg-red-200 text-red-800"
-                                        : "bg-red-100 text-red-800"
-                                  } w-32 h-16 flex flex-col items-center justify-center mx-auto`}
+                                      : isRejected
+                                      ? "bg-red-100 text-red-800"
+                                      : "bg-blue-100 text-blue-800"
+                                  }`}
                                 >
                                   <div>
                                     {step.status}
-                                    {/* Show approver/rejector */}
-                                    {step.trail === "Approved" &&
-                                      step.approvedBy && (
-                                        <div className="text-[10px] text-green-700 mt-1">
-                                          Approved by:{" "}
-                                          {userMap[step.approvedBy] ||
-                                            step.approvedBy}
-                                        </div>
-                                      )}
-                                    {step.trail === "Rejected" &&
-                                      step.approvedBy && (
-                                        <div className="text-[10px] text-red-700 mt-1">
-                                          Rejected by:{" "}
-                                          {userMap[step.approvedBy] ||
-                                            step.approvedBy}
-                                        </div>
-                                      )}
+                                    {isApproved && step.approvedBy && (
+                                      <div className="text-[10px] text-green-700 mt-1">
+                                        by {userMap[step.approvedBy] || step.approvedBy}
+                                      </div>
+                                    )}
+                                    {isRejected && step.approvedBy && (
+                                      <div className="text-[10px] text-red-700 mt-1">
+                                        by {userMap[step.approvedBy] || step.approvedBy}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -432,8 +314,7 @@ function PurchaseReturnView() {
                           No approval workflow steps found
                         </p>
                         <p className="text-gray-400 text-sm">
-                          This return request may not have entered the approval
-                          process yet
+                          This return request may not have entered the approval process yet
                         </p>
                       </div>
                     )}
@@ -450,9 +331,7 @@ function PurchaseReturnView() {
                           <div className="bg-white p-8 rounded-xl border min-w-[220px] max-w-[320px] text-base shadow-md">
                             <div className="flex items-center space-x-2">
                               <CheckCircle className="w-5 h-5 text-green-600" />
-                              <span className="font-medium text-green-800">
-                                Completed
-                              </span>
+                              <span className="font-medium text-green-800">Completed</span>
                             </div>
                             <p className="text-sm text-gray-600 mt-1">
                               {completedSteps} out of {totalSteps} steps
@@ -461,9 +340,7 @@ function PurchaseReturnView() {
                           <div className="bg-white p-8 rounded-xl border min-w-[220px] max-w-[320px] text-base shadow-md">
                             <div className="flex items-center space-x-2">
                               <Award className="w-5 h-5 text-blue-600" />
-                              <span className="font-medium text-blue-800">
-                                Remaining
-                              </span>
+                              <span className="font-medium text-blue-800">Remaining</span>
                             </div>
                             <p className="text-sm text-gray-600 mt-1">
                               {remainingSteps} steps to complete

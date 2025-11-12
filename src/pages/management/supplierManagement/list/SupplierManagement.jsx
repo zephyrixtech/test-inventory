@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Plus,
   Edit,
@@ -14,8 +14,14 @@ import {
   UserRound,
   Download,
   Eye,
-} from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+} from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -45,270 +51,237 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { ISupplierManagement } from "@/Utils/constants";
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { fetchSuppliers, fetchSupplierById, deleteSupplier as deleteSupplierStatic, simulateRPC } from '@/services/staticDataService';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-type SortField = 'supplier_id' | 'supplier_name' | 'email' | 'phone' | 'contact_person' | 'status';
-type SortDirection = 'asc' | 'desc' | null;
+// Mock Data
+const mockSuppliers = [
+  {
+    id: "1",
+    supplier_id: "SUP-001",
+    supplier_name: "TechGear Ltd",
+    email: "contact@techgear.com",
+    phone: "+1 555-0101",
+    contact_person: "John Smith",
+    status: "Active",
+  },
+  {
+    id: "2",
+    supplier_id: "SUP-002",
+    supplier_name: "Global Supplies Inc",
+    email: "info@globalsupplies.com",
+    phone: "+1 555-0102",
+    contact_person: "Emma Wilson",
+    status: "Active",
+  },
+  {
+    id: "3",
+    supplier_id: "SUP-003",
+    supplier_name: "Fast Logistics Co",
+    email: "sales@fastlogistics.com",
+    phone: "+1 555-0103",
+    contact_person: "Michael Brown",
+    status: "Inactive",
+  },
+  {
+    id: "4",
+    supplier_id: "SUP-004",
+    supplier_name: "Quality Parts Ltd",
+    email: "orders@qualityparts.com",
+    phone: "+1 555-0104",
+    contact_person: "Sarah Davis",
+    status: "Pending",
+  },
+  {
+    id: "5",
+    supplier_id: "SUP-005",
+    supplier_name: "Metro Distributors",
+    email: "support@metro.com",
+    phone: "+1 555-0105",
+    contact_person: "David Lee",
+    status: "Active",
+  },
+];
 
-interface SortConfig {
-  field: SortField | null;
-  direction: SortDirection;
-}
+// Mock supplier IDs used in Purchase Orders
+const mockPurchaseOrderSupplierIds = ["1", "3"];
 
-function debounce<T extends (...args: any[]) => any>(func: T, wait: number) {
-  let timeout: NodeJS.Timeout;
-  const debounced = (...args: Parameters<T>) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-  debounced.cancel = () => clearTimeout(timeout);
-  return debounced;
-}
-
-export default function SupplierManagement() {
+const SupplierManagement = () => {
   const navigate = useNavigate();
-  const [suppliers, setSuppliers] = useState<ISupplierManagement[]>([]);
+  const [suppliers, setSuppliers] = useState(mockSuppliers);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "Active" | "Inactive" | "Pending">("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [contactFilter, setContactFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [isFetching, setIsFetching] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [supplierToDelete, setSupplierToDelete] = useState<ISupplierManagement>();
-  const [totalItems, setTotalItems] = useState(0);
-  const [uniqueContacts, setUniqueContacts] = useState<string[]>([]);
-  const [sortConfig, setSortConfig] = useState<SortConfig>({
+  const [supplierToDelete, setSupplierToDelete] = useState(null);
+  const [sortConfig, setSortConfig] = useState({
     field: null,
     direction: null,
   });
-  // Get company_id from localStorage userData
-  const user = localStorage.getItem('userData');
-  const userData = user ? JSON.parse(user) : null;
-  const companyId = userData?.company_id || '';
-  const [purchaseOrderSupplierIds, setPurchaseOrderSupplierIds] = useState<string[]>([]);
 
-  const handleSort = (field: SortField) => {
-    let direction: SortDirection = 'asc';
-    
-    if (sortConfig.field === field) {
-      if (sortConfig.direction === 'asc') {
-        direction = 'desc';
-      } else if (sortConfig.direction === 'desc') {
-        direction = null;
-      } else {
-        direction = 'asc';
-      }
+  // Derive unique contacts
+  const uniqueContacts = useMemo(() => {
+    return Array.from(
+      new Set(
+        mockSuppliers
+          .map((s) => s.contact_person)
+          .filter(Boolean)
+      )
+    );
+  }, []);
+
+  // Filter & Sort Logic
+  const filteredAndSortedSuppliers = useMemo(() => {
+    let filtered = mockSuppliers;
+
+    // Search
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (s) =>
+          s.supplier_name.toLowerCase().includes(query) ||
+          s.supplier_id.toLowerCase().includes(query)
+      );
     }
-    
-    setSortConfig({ field: direction ? field : null, direction });
+
+    // Status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((s) => s.status === statusFilter);
+    }
+
+    // Contact filter
+    if (contactFilter !== "all") {
+      filtered = filtered.filter((s) => s.contact_person === contactFilter);
+    }
+
+    // Sort
+    if (sortConfig.field && sortConfig.direction) {
+      filtered = [...filtered].sort((a, b) => {
+        const aVal = a[sortConfig.field];
+        const bVal = b[sortConfig.field];
+        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [searchQuery, statusFilter, contactFilter, sortConfig]);
+
+  // Pagination
+  const totalItems = filteredAndSortedSuppliers.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const paginatedSuppliers = filteredAndSortedSuppliers.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Reset page when filters change
+  useEffect(() => {
     setCurrentPage(1);
+  }, [searchQuery, statusFilter, contactFilter, itemsPerPage]);
+
+  // Handle Sort
+  const handleSort = (field) => {
+    let direction = "asc";
+    if (sortConfig.field === field) {
+      if (sortConfig.direction === "asc") direction = "desc";
+      else if (sortConfig.direction === "desc") direction = null;
+    }
+    setSortConfig({ field: direction ? field : null, direction });
   };
 
-  const getSortIcon = (field: SortField) => {
+  const getSortIcon = (field) => {
     if (sortConfig.field !== field) {
       return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
     }
-    
-    if (sortConfig.direction === 'asc') {
+    if (sortConfig.direction === "asc") {
       return <ArrowUp className="h-4 w-4 text-blue-600" />;
-    } else if (sortConfig.direction === 'desc') {
+    } else if (sortConfig.direction === "desc") {
       return <ArrowDown className="h-4 w-4 text-blue-600" />;
     }
-    
     return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
   };
 
-  const fetchSuppliersData = async () => {
-    setIsFetching(true);
-    try {
-      const { data, count, error } = await fetchSuppliers({
-        page: currentPage,
-        limit: itemsPerPage,
-        searchQuery: searchQuery || undefined,
-        statusFilter: statusFilter !== "all" ? statusFilter : undefined,
-        contactFilter: contactFilter !== "all" ? contactFilter : undefined,
-        sortField: sortConfig.field || undefined,
-        sortDirection: sortConfig.direction || undefined,
-      });
+  // Export to CSV
+  const exportSuppliersToCSV = () => {
+    const csvHeaders = [
+      "Supplier ID",
+      "Supplier Name",
+      "Email",
+      "Phone Number",
+      "Contact Person",
+      "Status",
+    ];
+    const csvRows = filteredAndSortedSuppliers.map((s) => [
+      s.supplier_id,
+      s.supplier_name,
+      s.email,
+      s.phone,
+      s.contact_person,
+      s.status,
+    ]);
 
-      if (error) throw error;
+    const csvContent = [
+      csvHeaders.join(","),
+      ...csvRows.map((row) =>
+        row.map((cell) => `"${cell}"`).join(",")
+      ),
+    ].join("\n");
 
-      setSuppliers(data as ISupplierManagement[]);
-      setTotalItems(count || 0);
-    } catch (error) {
-      console.error("Error fetching suppliers:", error);
-      toast.error("Failed to fetch suppliers");
-    } finally {
-      setIsFetching(false);
-    }
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "suppliers-data.csv";
+    a.click();
+    window.URL.revokeObjectURL(url);
+
+    toast.success("Suppliers exported successfully");
   };
 
-  const exportSuppliersToCSV = async () => {
-    try {
-      // Fetch all suppliers for export
-      const { data: allSuppliers, error } = await fetchSuppliers({
-        page: 1,
-        limit: 10000, // Large limit to get all suppliers
-        searchQuery: searchQuery || undefined,
-        statusFilter: statusFilter !== "all" ? statusFilter : undefined,
-        contactFilter: contactFilter !== "all" ? contactFilter : undefined,
-        sortField: sortConfig.field || undefined,
-        sortDirection: sortConfig.direction || undefined,
-      });
-
-      if (error) throw error;
-
-      // Convert to CSV
-      const csvHeaders = ['Supplier ID', 'Supplier Name', 'Email', 'Phone Number', 'Contact Person', 'Status'];
-      const csvRows = allSuppliers.map((supplier: ISupplierManagement) => [
-        supplier.supplier_id || '',
-        supplier.supplier_name || '',
-        supplier.email || '',
-        supplier.phone || '',
-        supplier.contact_person || '',
-        supplier.status || '',
-      ]);
-
-      // Create CSV content
-      const csvContent = [
-        csvHeaders.join(','),
-        ...csvRows.map(row => row.map(cell => `"${cell}"`).join(','))
-      ].join('\n');
-
-      // Download CSV
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'suppliers-data.csv';
-      a.click();
-      window.URL.revokeObjectURL(url);
-
-      toast.success('Suppliers exported successfully');
-    } catch (err: any) {
-      toast.error(`Failed to export suppliers: ${err.message}`);
-    }
-  };
-
-  const fetchUniqueContacts = async () => {
-    try {
-      // Fetch all suppliers to get unique contacts
-      const { data: allSuppliers } = await fetchSuppliers({
-        page: 1,
-        limit: 10000,
-      });
-
-      const contacts = Array.from(
-        new Set(
-          allSuppliers
-            .map((item: any) => item.contact_person)
-            .filter(Boolean)
-        )
-      ) as string[];
-      
-      setUniqueContacts(contacts);
-    } catch (error) {
-      console.error("Error fetching unique contacts:", error);
-      toast.error("Failed to fetch contacts");
-    }
-  };
-
+  // Clear Filters
   const clearFilters = () => {
     setSearchQuery("");
     setStatusFilter("all");
     setContactFilter("all");
-    setCurrentPage(1);
     setSortConfig({ field: null, direction: null });
+    setCurrentPage(1);
   };
 
-  const debouncedFetchSuppliers = debounce(fetchSuppliersData, 300);
-
-  useEffect(() => {
-    debouncedFetchSuppliers();
-    fetchUniqueContacts();
-    return () => {
-      debouncedFetchSuppliers.cancel();
-    };
-  }, [searchQuery, statusFilter, contactFilter, currentPage, itemsPerPage, sortConfig]);
-
-  useEffect(() => {
-    const newTotalPages = Math.ceil(totalItems / itemsPerPage);
-    if (currentPage > newTotalPages && newTotalPages > 0) {
-      setCurrentPage(newTotalPages);
-    } else if (totalItems === 0) {
-      setCurrentPage(1);
-    }
-  }, [totalItems, itemsPerPage, currentPage]);
-
-  useEffect(() => {
-    const fetchAllPOsupplierIds = async () => {
-      if (!companyId) return;
-      try {
-        const { data, error } = await simulateRPC('get_supplier_ids_from_purchase_orders', { p_company_id: companyId });
-
-        if (error) throw error;
-
-        if (data) {
-          setPurchaseOrderSupplierIds(data as string[]);
-        }
-      } catch (error) {
-        console.error("Error fetchAllPOsupplierIds:", error);
-        setPurchaseOrderSupplierIds([]);
-      }
-    }
-
-    fetchAllPOsupplierIds();
-  }, [companyId])
-
-  const handleDelete = async () => {
+  // Delete Supplier
+  const handleDelete = () => {
     if (!supplierToDelete) return;
-    setIsDeleting(true);
-    try {
-      const { error } = await deleteSupplierStatic(supplierToDelete.id);
 
-      if (error) throw error;
-
-      setSuppliers((prev) => prev.filter((supplier) => supplier.id !== supplierToDelete.id));
-      setTotalItems((prev) => prev - 1);
-      fetchUniqueContacts();
-      fetchSuppliersData(); // Refresh the list
-
-      toast.success("Supplier deleted successfully", { position: "top-right" });
-    } catch (error) {
-      console.error("Error deleting supplier or items:", error);
-      toast.error("Failed to delete supplier or related items");
-    } finally {
-      setIsDialogOpen(false);
-      setSupplierToDelete(undefined);
-      setIsDeleting(false);
-    }
+    setSuppliers((prev) => prev.filter((s) => s.id !== supplierToDelete.id));
+    toast.success("Supplier deleted successfully");
+    setIsDialogOpen(false);
+    setSupplierToDelete(null);
   };
 
-  const openDeleteDialog = (supplier: ISupplierManagement) => {
+  const openDeleteDialog = (supplier) => {
     setSupplierToDelete(supplier);
     setIsDialogOpen(true);
   };
 
-  const handleEdit = (supplier: ISupplierManagement) => {
+  const handleEdit = (supplier) => {
     navigate(`/dashboard/supplier/edit/${supplier.id}`);
   };
 
-  const handleView = (supplier: ISupplierManagement) => {
+  const handleView = (supplier) => {
     navigate(`/dashboard/supplier/view/${supplier.id}`);
   };
 
-  const statusStyles: Record<string, string> = {
-    active: "bg-green-100 text-green-800 border-green-300",
-    inactive: "bg-red-100 text-red-800 border-red-300",
-    pending: "bg-yellow-100 text-yellow-800 border-yellow-300",
-    default: "bg-gray-100 text-gray-800 border-gray-300",
+  const statusStyles = {
+    Active: "bg-green-100 text-green-800 border-green-300",
+    Inactive: "bg-red-100 text-red-800 border-red-300",
+    Pending: "bg-yellow-100 text-yellow-800 border-yellow-300",
   };
-
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
 
   return (
     <div className="p-6">
@@ -334,7 +307,7 @@ export default function SupplierManagement() {
                   variant="outline"
                   onClick={exportSuppliersToCSV}
                   className="transition-colors me-2"
-                  disabled={suppliers.length === 0}
+                  disabled={totalItems === 0}
                 >
                   <Download className="mr-2 h-4 w-4" />
                   <span>Export CSV</span>
@@ -358,11 +331,7 @@ export default function SupplierManagement() {
                   <Input
                     placeholder="Search by supplier name or ID..."
                     value={searchQuery}
-                    onChange={(e) => {
-                      const sanitizedQuery = e.target.value.replace(/[%_]/g, '');
-                      setSearchQuery(sanitizedQuery);
-                      setCurrentPage(1);
-                    }}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10"
                   />
                 </div>
@@ -371,10 +340,7 @@ export default function SupplierManagement() {
                     <Filter className="h-4 w-4 text-gray-500" />
                     <Select
                       value={statusFilter}
-                      onValueChange={(value: "all" | "Active" | "Inactive" | "Pending") => {
-                        setStatusFilter(value);
-                        setCurrentPage(1);
-                      }}
+                      onValueChange={(value) => setStatusFilter(value)}
                     >
                       <SelectTrigger className="w-full lg:w-[180px]">
                         <SelectValue placeholder="All Status" />
@@ -391,10 +357,7 @@ export default function SupplierManagement() {
                     <UserRound className="h-4 w-4 text-gray-500" />
                     <Select
                       value={contactFilter}
-                      onValueChange={(value) => {
-                        setContactFilter(value);
-                        setCurrentPage(1);
-                      }}
+                      onValueChange={(value) => setContactFilter(value)}
                     >
                       <SelectTrigger className="w-full lg:w-[180px]">
                         <SelectValue placeholder="All Contacts" />
@@ -427,125 +390,89 @@ export default function SupplierManagement() {
                     <TableHead className="font-semibold w-[120px]">
                       <button
                         type="button"
-                        onClick={() => handleSort('supplier_id')}
+                        onClick={() => handleSort("supplier_id")}
                         className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto ps-2 hover:text-blue-600"
-                        aria-label={`Sort by Supplier ID ${sortConfig.field === 'supplier_id' ? sortConfig.direction : 'asc'}`}
                       >
                         Supplier ID
-                        {getSortIcon('supplier_id')}
+                        {getSortIcon("supplier_id")}
                       </button>
                     </TableHead>
                     <TableHead className="font-semibold w-1/4">
                       <button
                         type="button"
-                        onClick={() => handleSort('supplier_name')}
+                        onClick={() => handleSort("supplier_name")}
                         className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto ps-2 hover:text-blue-600"
-                        aria-label={`Sort by Supplier Name ${sortConfig.field === 'supplier_name' ? sortConfig.direction : 'asc'}`}
                       >
                         Supplier Name
-                        {getSortIcon('supplier_name')}
+                        {getSortIcon("supplier_name")}
                       </button>
                     </TableHead>
                     <TableHead className="font-semibold">
                       <button
                         type="button"
-                        onClick={() => handleSort('email')}
+                        onClick={() => handleSort("email")}
                         className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600"
-                        aria-label={`Sort by Email ${sortConfig.field === 'email' ? sortConfig.direction : 'asc'}`}
                       >
                         Email
-                        {getSortIcon('email')}
+                        {getSortIcon("email")}
                       </button>
                     </TableHead>
                     <TableHead className="font-semibold text-left">
                       <button
                         type="button"
-                        onClick={() => handleSort('phone')}
+                        onClick={() => handleSort("phone")}
                         className="h-8 flex items-center justify-end me-auto gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600"
-                        aria-label={`Sort by Phone ${sortConfig.field === 'phone' ? sortConfig.direction : ''}`}
                       >
                         Phone #
-                        {getSortIcon('phone')}
+                        {getSortIcon("phone")}
                       </button>
                     </TableHead>
                     <TableHead className="font-semibold text-center">
                       <button
                         type="button"
-                        onClick={() => handleSort('contact_person')}
+                        onClick={() => handleSort("contact_person")}
                         className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto justify-center hover:text-blue-600"
-                        aria-label={`Sort by Contact Person ${sortConfig.field === 'contact_person' ? sortConfig.direction : 'asc'}`}
                       >
                         Contact Person
-                        {getSortIcon('contact_person')}
+                        {getSortIcon("contact_person")}
                       </button>
                     </TableHead>
                     <TableHead className="font-semibold text-left">
                       <button
                         type="button"
-                        onClick={() => handleSort('status')}
+                        onClick={() => handleSort("status")}
                         className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto justify-center hover:text-blue-600"
-                        aria-label={`Sort by Status ${sortConfig.field === 'status' ? sortConfig.direction : 'asc'}`}
                       >
                         Status
-                        {getSortIcon('status')}
+                        {getSortIcon("status")}
                       </button>
                     </TableHead>
                     <TableHead className="text-center font-semibold">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isFetching ? (
-                    Array(itemsPerPage)
-                      .fill(0)
-                      .map((_, index) => (
-                        <TableRow key={index} className="hover:bg-gray-50">
-                          <TableCell className="py-3">
-                            <div className="h-4 w-20 bg-gray-200 rounded animate-pulse"></div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="h-4 w-40 bg-gray-200 rounded animate-pulse"></div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mx-auto"></div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mx-auto"></div>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="h-4 w-20 bg-gray-200 rounded animate-pulse mx-auto"></div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-center gap-2">
-                              <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
-                              <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
-                              <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                  ) : suppliers.length > 0 ? (
-                    suppliers.map((supplier) => {
-                      const isSupplierUsedInPO = purchaseOrderSupplierIds.includes(supplier.id);
-                      console.log(`${supplier.id}: ${isSupplierUsedInPO}`)
+                  {paginatedSuppliers.length > 0 ? (
+                    paginatedSuppliers.map((supplier) => {
+                      const isUsedInPO = mockPurchaseOrderSupplierIds.includes(supplier.id);
                       return (
                         <TableRow key={supplier.id} className="hover:bg-gray-50">
                           <TableCell className="font-medium py-3">
-                            <p className="ps-2">{supplier.supplier_id || supplier.id || "N/A"}</p>
+                            <p className="ps-2">{supplier.supplier_id}</p>
                           </TableCell>
-                          <TableCell className="font-medium"><p className="ps-2">{supplier.supplier_name || "N/A"} </p></TableCell>
-                          <TableCell>{supplier.email || "N/A"}</TableCell>
-                          <TableCell className='text-left'>{supplier.phone || "N/A"}</TableCell>
-                          <TableCell >{supplier.contact_person || "N/A"}</TableCell>
+                          <TableCell className="font-medium">
+                            <p className="ps-2">{supplier.supplier_name}</p>
+                          </TableCell>
+                          <TableCell>{supplier.email}</TableCell>
+                          <TableCell className="text-left">{supplier.phone}</TableCell>
+                          <TableCell>{supplier.contact_person}</TableCell>
                           <TableCell className="text-left">
                             <Badge
                               variant="outline"
-                              className={`font-medium capitalize ${statusStyles[supplier.status!.toLowerCase()] || statusStyles.default
-                                }`}
+                              className={`font-medium capitalize ${
+                                statusStyles[supplier.status] || "bg-gray-100 text-gray-800 border-gray-300"
+                              }`}
                             >
-                              {supplier.status || "N/A"}
+                              {supplier.status}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
@@ -554,7 +481,6 @@ export default function SupplierManagement() {
                                 variant="outline"
                                 size="icon"
                                 onClick={() => handleView(supplier)}
-                                aria-label={`View supplier ${supplier.supplier_name || supplier.id}`}
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
@@ -562,18 +488,17 @@ export default function SupplierManagement() {
                                 variant="outline"
                                 size="icon"
                                 onClick={() => handleEdit(supplier)}
-                                aria-label={`Edit supplier ${supplier.supplier_name || supplier.id}`}
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              {isSupplierUsedInPO ? (
+                              {isUsedInPO ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <div>
                                       <Button
                                         variant="outline"
                                         size="icon"
-                                        className="text-destructive hover:bg-destructive/10 opacity-50 cursor-pointer"
+                                        className="text-destructive hover:bg-destructive/10 opacity-50 cursor-not-allowed"
                                         disabled
                                       >
                                         <Trash2 className="h-4 w-4" />
@@ -581,7 +506,7 @@ export default function SupplierManagement() {
                                     </div>
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    <p>Cannot delete this supplier. Purchase orders are associated with this supplier.</p>
+                                    <p>Cannot delete: Used in Purchase Orders</p>
                                   </TooltipContent>
                                 </Tooltip>
                               ) : (
@@ -590,7 +515,6 @@ export default function SupplierManagement() {
                                   size="icon"
                                   className="text-destructive hover:bg-destructive/10"
                                   onClick={() => openDeleteDialog(supplier)}
-                                  aria-label={`Delete supplier ${supplier.supplier_name || supplier.id}`}
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -598,11 +522,11 @@ export default function SupplierManagement() {
                             </div>
                           </TableCell>
                         </TableRow>
-                      )
+                      );
                     })
                   ) : (
-                    <TableRow className="hover:bg-gray-50">
-                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                         <div className="flex flex-col items-center justify-center py-6">
                           <Building2 className="h-12 w-12 text-gray-300 mb-2" />
                           <p className="text-base font-medium">
@@ -611,7 +535,7 @@ export default function SupplierManagement() {
                           <p className="text-sm text-gray-500">
                             {totalItems === 0
                               ? "Add a new supplier to get started"
-                              : "Try adjusting your search or filter"}
+                              : "Try adjusting your search or filters"}
                           </p>
                         </div>
                       </TableCell>
@@ -626,13 +550,10 @@ export default function SupplierManagement() {
                 <p className="text-sm text-muted-foreground">Show</p>
                 <Select
                   value={itemsPerPage.toString()}
-                  onValueChange={(value) => {
-                    setItemsPerPage(Number(value));
-                    setCurrentPage(1);
-                  }}
+                  onValueChange={(value) => setItemsPerPage(Number(value))}
                 >
                   <SelectTrigger className="w-[70px]">
-                    <SelectValue placeholder={itemsPerPage.toString()} />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="5">5</SelectItem>
@@ -646,16 +567,15 @@ export default function SupplierManagement() {
 
               <div className="flex items-center gap-2">
                 <p className="text-sm text-muted-foreground hidden sm:block">
-                  Showing {suppliers.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to{" "}
+                  Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
                   {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} entries
                 </p>
                 <div className="flex items-center space-x-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1 || isFetching}
-                    aria-label="Previous page"
+                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                    disabled={currentPage === 1}
                   >
                     <ChevronLeft className="h-4 w-4 mr-1" />
                     Previous
@@ -666,9 +586,8 @@ export default function SupplierManagement() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages || isFetching || totalPages === 0}
-                    aria-label="Next page"
+                    onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                    disabled={currentPage === totalPages || totalPages === 0}
                   >
                     Next
                     <ChevronRight className="h-4 w-4 ml-1" />
@@ -679,6 +598,7 @@ export default function SupplierManagement() {
           </CardContent>
         </Card>
 
+        {/* Delete Confirmation Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
@@ -689,17 +609,10 @@ export default function SupplierManagement() {
             </DialogHeader>
             <DialogFooter className="flex justify-end gap-2">
               <DialogClose asChild>
-                <Button variant="outline" onClick={() => setSupplierToDelete(undefined)}>
-                  Cancel
-                </Button>
+                <Button variant="outline">Cancel</Button>
               </DialogClose>
-              <Button
-                variant="destructive"
-                onClick={handleDelete}
-                disabled={isDeleting}
-                aria-label="Confirm delete supplier"
-              >
-               Yes
+              <Button variant="destructive" onClick={handleDelete}>
+                Yes, Delete
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -708,3 +621,5 @@ export default function SupplierManagement() {
     </div>
   );
 };
+
+export default SupplierManagement;
