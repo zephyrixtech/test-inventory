@@ -9,8 +9,8 @@ const initialState = {
   statusMessages: {},
   reportConfigs: {
     'purchase-order': {},
-    'sales': {},
-    'stock': {},
+    sales: {},
+    stock: {},
   },
 };
 
@@ -41,16 +41,30 @@ const printSlice = createSlice({
   },
 });
 
-export const { setPrintData, clearPrintData, updateStatusMessages, setReportConfigs } = printSlice.actions;
+export const {
+  setPrintData,
+  clearPrintData,
+  updateStatusMessages,
+  setReportConfigs,
+} = printSlice.actions;
+
 export default printSlice.reducer;
 
-// Memoized Selectors
 const selectPrintState = (state) => state.print;
 
 export const selectPrintData = createSelector(selectPrintState, (print) => print.reportData);
-export const selectSelectedReportType = createSelector(selectPrintState, (print) => print.selectedReportType);
+export const selectSelectedReportType = createSelector(
+  selectPrintState,
+  (print) => print.selectedReportType,
+);
 export const selectDateRange = createSelector(selectPrintState, (print) => print.dateRange);
-export const selectStatusMessages = createSelector(selectPrintState, (print) => print.statusMessages);
+export const selectStatusMessages = createSelector(
+  selectPrintState,
+  (print) => print.statusMessages,
+);
 export const selectLastUpdated = createSelector(selectPrintState, (print) => print.lastUpdated);
-export const selectReportConfigs = createSelector(selectPrintState, (print) => print.reportConfigs);
+export const selectReportConfigs = createSelector(
+  selectPrintState,
+  (print) => print.reportConfigs,
+);
 

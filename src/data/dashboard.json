@@ -1,0 +1,49 @@
+{
+  "lastUpdated": "2024-04-30T10:00:00.000Z",
+  "metrics": {
+    "totalItems": 120,
+    "totalValue": 54000,
+    "totalPurchaseOrders": 28,
+    "totalPurchaseOrderValue": 125000
+  },
+  "categoryData": [
+    { "name": "Electronics", "count": 48 },
+    { "name": "Tools", "count": 32 },
+    { "name": "Consumables", "count": 24 },
+    { "name": "Safety", "count": 16 }
+  ],
+  "salesData": [
+    { "month": "Jan", "value": 7800 },
+    { "month": "Feb", "value": 8200 },
+    { "month": "Mar", "value": 8600 },
+    { "month": "Apr", "value": 9100 }
+  ],
+  "inventoryAlerts": [
+    {
+      "itemName": "Widget A",
+      "currentQty": 35,
+      "reorderLevel": 50,
+      "maxLevel": 120,
+      "alertType": "low_stock",
+      "severity": "high"
+    },
+    {
+      "itemName": "Widget C",
+      "currentQty": 180,
+      "reorderLevel": 60,
+      "maxLevel": 140,
+      "alertType": "excess_stock",
+      "severity": "medium"
+    }
+  ],
+  "fastMovingItems": [
+    { "name": "Widget A", "avgQuantity": 95 },
+    { "name": "Widget B", "avgQuantity": 82 },
+    { "name": "Widget D", "avgQuantity": 74 }
+  ],
+  "slowMovingItems": [
+    { "name": "Widget Q", "avgQuantity": 12 },
+    { "name": "Widget L", "avgQuantity": 15 },
+    { "name": "Widget H", "avgQuantity": 18 }
+  ]
+}

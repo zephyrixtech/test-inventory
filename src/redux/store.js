@@ -1,10 +1,9 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { persistStore, persistReducer } from 'redux-persist';
-import storage from 'redux-persist/lib/storage'; // Default storage (localStorage for web)
+import storage from 'redux-persist/lib/storage';
 import printReducer from './features/PurchaseOrderReportPrintSlice';
 import userReducer from './features/userSlice';
 
-// Individual persist configs for each slice
 const printPersistConfig = {
   key: 'print',
   storage,
@@ -15,7 +14,6 @@ const userPersistConfig = {
   storage,
 };
 
-// Create persisted reducers
 const persistedPrintReducer = persistReducer(printPersistConfig, printReducer);
 const persistedUserReducer = persistReducer(userPersistConfig, userReducer);
 
@@ -35,7 +33,3 @@ export const store = configureStore({
 });
 
 export const persistor = persistStore(store);
-
-// Type definitions
-export type RootState = ReturnType<typeof store.getState>;
-export type AppDispatch = typeof store.dispatch;

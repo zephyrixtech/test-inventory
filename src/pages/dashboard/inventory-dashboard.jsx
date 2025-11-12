@@ -7,19 +7,13 @@ import {
 import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
+import dashboardData from '@/data/dashboard.json';
 
 export const InventoryDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [lastUpdated, setLastUpdated] = useState(new Date().toISOString());
-  const [data, setData] = useState({
-    metrics: { totalItems: 120, totalValue: 54000, totalPurchaseOrders: 28, totalPurchaseOrderValue: 125000 },
-    categoryData: [],
-    salesData: [],
-    fastMovingItems: [],
-    slowMovingItems: [],
-    inventoryAlerts: [],
-  });
+  const [lastUpdated, setLastUpdated] = useState(dashboardData.lastUpdated);
+  const [data, setData] = useState(dashboardData);
   const [currencySymbol, setCurrencySymbol] = useState('$');
 
   useEffect(() => {
