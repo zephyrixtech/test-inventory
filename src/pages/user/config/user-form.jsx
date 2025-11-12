@@ -160,7 +160,8 @@ export const UserForm = () => {
       try {
         const { data } = await fetchRoles();
         if (data) {
-          setAllRoles(data);
+          const filtered = data.filter((role) => role.name !== 'Super Admin');
+          setAllRoles(filtered);
         }
       } catch (err) {
         console.error('Error fetching roles:', err);
