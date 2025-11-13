@@ -104,15 +104,15 @@ export const DashboardLayout = () => {
     { path: '/dashboard/inventoryManagement', label: 'Inventory Management', icon: <Package className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/invoice', label: 'Sales Invoice', icon: <BadgeDollarSign className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/reports', label: 'Reports', icon: <ChartNoAxesCombined className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/workflow-config', label: 'Workflow Configuration', icon: <Workflow className="mr-3 h-4 w-4 flex-shrink-0" /> },
+    // { path: '/dashboard/workflow-config', label: 'Workflow Configuration', icon: <Workflow className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/administration', label: 'Administration', icon: <Building2 className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/administration/currency', label: 'Currency Rates', icon: <Building2 className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/purchase-order-approvals', label: 'Purchase Order Approvals', icon: <ClipboardCheck className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/return-request', label: 'Returns Management', icon: <SquareChartGantt className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/purchase-order-return-approvals', label: 'Purchase Return Requests', icon: <SquareChartGantt className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/return-eligible-purchase-orders', label: 'Returns Eligible', icon: <SquareChartGantt className="mr-3 h-4 w-4 flex-shrink-0" /> },
+    // { path: '/dashboard/purchase-order-approvals', label: 'Purchase Order Approvals', icon: <ClipboardCheck className="mr-3 h-4 w-4 flex-shrink-0" /> },
+    // { path: '/dashboard/return-request', label: 'Returns Management', icon: <SquareChartGantt className="mr-3 h-4 w-4 flex-shrink-0" /> },
+    // { path: '/dashboard/purchase-order-return-approvals', label: 'Purchase Return Requests', icon: <SquareChartGantt className="mr-3 h-4 w-4 flex-shrink-0" /> },
+    // { path: '/dashboard/return-eligible-purchase-orders', label: 'Returns Eligible', icon: <SquareChartGantt className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/audit-trial', label: 'Audit Trial', icon: <Clock className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/role-management', label: 'Role Management', icon: <Clock className="mr-3 h-4 w-4 flex-shrink-0" /> },
+    // { path: '/dashboard/role-management', label: 'Role Management', icon: <Clock className="mr-3 h-4 w-4 flex-shrink-0" /> },
   ];
 
   const visibleItems = menuItems; 
