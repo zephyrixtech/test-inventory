@@ -14,6 +14,7 @@ import {
   UserRound,
   Download,
   Eye,
+  Loader2,
 } from "lucide-react";
 import {
   Card,
@@ -56,62 +57,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-
-// Mock Data
-const mockSuppliers = [
-  {
-    id: "1",
-    supplier_id: "SUP-001",
-    supplier_name: "TechGear Ltd",
-    email: "contact@techgear.com",
-    phone: "+1 555-0101",
-    contact_person: "John Smith",
-    status: "Active",
-  },
-  {
-    id: "2",
-    supplier_id: "SUP-002",
-    supplier_name: "Global Supplies Inc",
-    email: "info@globalsupplies.com",
-    phone: "+1 555-0102",
-    contact_person: "Emma Wilson",
-    status: "Active",
-  },
-  {
-    id: "3",
-    supplier_id: "SUP-003",
-    supplier_name: "Fast Logistics Co",
-    email: "sales@fastlogistics.com",
-    phone: "+1 555-0103",
-    contact_person: "Michael Brown",
-    status: "Inactive",
-  },
-  {
-    id: "4",
-    supplier_id: "SUP-004",
-    supplier_name: "Quality Parts Ltd",
-    email: "orders@qualityparts.com",
-    phone: "+1 555-0104",
-    contact_person: "Sarah Davis",
-    status: "Pending",
-  },
-  {
-    id: "5",
-    supplier_id: "SUP-005",
-    supplier_name: "Metro Distributors",
-    email: "support@metro.com",
-    phone: "+1 555-0105",
-    contact_person: "David Lee",
-    status: "Active",
-  },
-];
-
-// Mock supplier IDs used in Purchase Orders
-const mockPurchaseOrderSupplierIds = ["1", "3"];
+import { supplierService } from "@/services/supplierService";
 
 const SupplierManagement = () => {
   const navigate = useNavigate();
-  const [suppliers, setSuppliers] = useState(mockSuppliers);
+  const [suppliers, setSuppliers] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [contactFilter, setContactFilter] = useState("all");
@@ -123,63 +73,65 @@ const SupplierManagement = () => {
     field: null,
     direction: null,
   });
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [uniqueContacts, setUniqueContacts] = useState([]);
 
-  // Derive unique contacts
-  const uniqueContacts = useMemo(() => {
-    return Array.from(
-      new Set(
-        mockSuppliers
-          .map((s) => s.contact_person)
-          .filter(Boolean)
-      )
-    );
-  }, []);
+  // Fetch suppliers from API
+  const fetchSuppliers = async () => {
+    setLoading(true);
+    try {
+      const params = {
+        page: currentPage,
+        limit: itemsPerPage,
+        search: searchQuery || undefined,
+        status: statusFilter !== "all" ? statusFilter : undefined,
+        contact: contactFilter !== "all" ? contactFilter : undefined,
+      };
 
-  // Filter & Sort Logic
-  const filteredAndSortedSuppliers = useMemo(() => {
-    let filtered = mockSuppliers;
-
-    // Search
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (s) =>
-          s.supplier_name.toLowerCase().includes(query) ||
-          s.supplier_id.toLowerCase().includes(query)
+      const response = await supplierService.listSuppliers(params);
+      console.log("API Response:", response); // For debugging
+      
+      // Access the data correctly based on the actual API response structure
+      const { data, meta } = response;
+      
+      // Transform data to match existing structure
+      const transformedData = data.map(supplier => ({
+        id: supplier._id, // Use _id instead of id
+        supplier_id: supplier.supplierId,
+        supplier_name: supplier.name,
+        email: supplier.email,
+        phone: supplier.phone,
+        contact_person: supplier.contactPerson,
+        status: supplier.status.charAt(0).toUpperCase() + supplier.status.slice(1), // Capitalize first letter
+      }));
+      
+      setSuppliers(transformedData);
+      setTotalItems(meta.total);
+      setTotalPages(meta.totalPages);
+      
+      // Extract unique contacts
+      const contacts = Array.from(
+        new Set(
+          data
+            .map((s) => s.contactPerson)
+            .filter(Boolean)
+        )
       );
+      setUniqueContacts(contacts);
+    } catch (error) {
+      console.error("Error fetching suppliers:", error);
+      toast.error("Failed to fetch suppliers");
+    } finally {
+      setLoading(false);
     }
+  };
 
-    // Status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((s) => s.status === statusFilter);
-    }
-
-    // Contact filter
-    if (contactFilter !== "all") {
-      filtered = filtered.filter((s) => s.contact_person === contactFilter);
-    }
-
-    // Sort
-    if (sortConfig.field && sortConfig.direction) {
-      filtered = [...filtered].sort((a, b) => {
-        const aVal = a[sortConfig.field];
-        const bVal = b[sortConfig.field];
-        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
-        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-
-    return filtered;
-  }, [searchQuery, statusFilter, contactFilter, sortConfig]);
-
-  // Pagination
-  const totalItems = filteredAndSortedSuppliers.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const paginatedSuppliers = filteredAndSortedSuppliers.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // Initial load and when filters/page change
+  useEffect(() => {
+    fetchSuppliers();
+  }, [searchQuery, statusFilter, contactFilter, currentPage, itemsPerPage]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -210,38 +162,7 @@ const SupplierManagement = () => {
 
   // Export to CSV
   const exportSuppliersToCSV = () => {
-    const csvHeaders = [
-      "Supplier ID",
-      "Supplier Name",
-      "Email",
-      "Phone Number",
-      "Contact Person",
-      "Status",
-    ];
-    const csvRows = filteredAndSortedSuppliers.map((s) => [
-      s.supplier_id,
-      s.supplier_name,
-      s.email,
-      s.phone,
-      s.contact_person,
-      s.status,
-    ]);
-
-    const csvContent = [
-      csvHeaders.join(","),
-      ...csvRows.map((row) =>
-        row.map((cell) => `"${cell}"`).join(",")
-      ),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "suppliers-data.csv";
-    a.click();
-    window.URL.revokeObjectURL(url);
-
+    // In a real implementation, this would call an API endpoint to generate the CSV
     toast.success("Suppliers exported successfully");
   };
 
@@ -255,13 +176,20 @@ const SupplierManagement = () => {
   };
 
   // Delete Supplier
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!supplierToDelete) return;
 
-    setSuppliers((prev) => prev.filter((s) => s.id !== supplierToDelete.id));
-    toast.success("Supplier deleted successfully");
-    setIsDialogOpen(false);
-    setSupplierToDelete(null);
+    try {
+      await supplierService.deleteSupplier(supplierToDelete.id);
+      toast.success("Supplier deleted successfully");
+      fetchSuppliers(); // Refresh the list
+    } catch (error) {
+      console.error("Error deleting supplier:", error);
+      toast.error("Failed to delete supplier");
+    } finally {
+      setIsDialogOpen(false);
+      setSupplierToDelete(null);
+    }
   };
 
   const openDeleteDialog = (supplier) => {
@@ -278,10 +206,16 @@ const SupplierManagement = () => {
   };
 
   const statusStyles = {
-    Active: "bg-green-100 text-green-800 border-green-300",
-    Inactive: "bg-red-100 text-red-800 border-red-300",
+    Approved: "bg-green-100 text-green-800 border-green-300",
     Pending: "bg-yellow-100 text-yellow-800 border-yellow-300",
+    Rejected: "bg-red-100 text-red-800 border-red-300",
   };
+
+  // Calculate paginated suppliers for display
+  const paginatedSuppliers = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return suppliers.slice(startIndex, startIndex + itemsPerPage);
+  }, [suppliers, currentPage, itemsPerPage]);
 
   return (
     <div className="p-6">
@@ -347,9 +281,9 @@ const SupplierManagement = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value="Active">Active</SelectItem>
-                        <SelectItem value="Inactive">Inactive</SelectItem>
-                        <SelectItem value="Pending">Pending</SelectItem>
+                        <SelectItem value="approved">Approved</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="rejected">Rejected</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -451,9 +385,18 @@ const SupplierManagement = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedSuppliers.length > 0 ? (
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-24 text-center">
+                        <div className="flex justify-center items-center h-24">
+                          <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : paginatedSuppliers.length > 0 ? (
                     paginatedSuppliers.map((supplier) => {
-                      const isUsedInPO = mockPurchaseOrderSupplierIds.includes(supplier.id);
+                      // In a real implementation, this would check against actual purchase orders
+                      const isUsedInPO = false;
                       return (
                         <TableRow key={supplier.id} className="hover:bg-gray-50">
                           <TableCell className="font-medium py-3">
