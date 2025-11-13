@@ -214,42 +214,22 @@ export const deleteItemConfiguration = async (id: string): Promise<boolean> => {
   }
 };
 
-// Get categories for dropdown (placeholder - should be replaced with actual API call)
+// Get categories for dropdown
 export const getCategories = async (): Promise<any[]> => {
   try {
-    // This would typically be a separate API call like:
-    // const response = await apiClient.get('/categories');
-    // return response.data;
-    
-    // For now, returning mock data - will be replaced with actual API call
-    return [
-      { id: '1', name: 'Lights' },
-      { id: '2', name: 'Engine Parts' },
-      { id: '3', name: 'Brake System' },
-      { id: '4', name: 'Suspension' },
-      { id: '5', name: 'Electrical' },
-      { id: '6', name: 'Body Parts' }
-    ];
+    const response = await apiClient.get('/categories');
+    return response.data;
   } catch (error) {
     console.error('Error fetching categories:', error);
     throw error;
   }
 };
 
-// Get vendors for dropdown (placeholder - should be replaced with actual API call)
+// Get vendors for dropdown
 export const getVendors = async (): Promise<any[]> => {
   try {
-    // This would typically be a separate API call like:
-    // const response = await apiClient.get('/vendors');
-    // return response.data;
-    
-    // For now, returning mock data - will be replaced with actual API call
-    return [
-      { id: '1', name: 'Maruti Suzuki' },
-      { id: '2', name: 'Toyota' },
-      { id: '3', name: 'Honda' },
-      { id: '4', name: 'Hyundai' }
-    ];
+    const response = await apiClient.get('/vendors');
+    return response.data;
   } catch (error) {
     console.error('Error fetching vendors:', error);
     throw error;
