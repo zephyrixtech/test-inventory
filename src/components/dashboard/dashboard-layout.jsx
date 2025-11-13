@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, Home, Users, Package, Truck, LayoutTemplate, ChevronRight, Bell, LogOut, BadgeDollarSign, ChartNoAxesCombined, Store ,FileText, Workflow, ClipboardCheck, SquareChartGantt, Building2, Clock, Handshake, ShieldCheck, Boxes} from 'lucide-react';
+import { Menu, X, Home, Users, Package, Truck, LayoutTemplate, ChevronRight, Bell, LogOut, BadgeDollarSign, ChartNoAxesCombined, Store, FileText, Workflow, ClipboardCheck, SquareChartGantt, Building2, Clock, Handshake, ShieldCheck, Boxes } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,17 @@ export const DashboardLayout = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const notificationPaneRef = useRef(null);
-  const [roleName, setRoleName] = useState(localStorage.getItem('roleName') || '');
+  const [roleName, setRoleName] = useState(() => {
+    // Extract role name from userData with proper handling
+    if (userData?.role && typeof userData.role === 'string') {
+      return userData.role;
+    } else if (userData?.role && typeof userData.role === 'object') {
+      return userData.role.name || userData.role.role_name || '';
+    } else if (userData?.role_name) {
+      return userData.role_name;
+    }
+    return localStorage.getItem('roleName') || '';
+  });
   const [profileImageUrl, setProfileImageUrl] = useState(ProfileImg);
 
   useEffect(() => {
@@ -72,8 +82,8 @@ export const DashboardLayout = () => {
     const isActive = isActiveRoute(path);
     return cn(
       "w-full justify-start transition-all duration-200 ease-in-out relative py-2.5 text-sm font-medium",
-      isActive 
-        ? "bg-blue-50 text-blue-700 hover:bg-blue-100 pl-3 pr-8" 
+      isActive
+        ? "bg-blue-50 text-blue-700 hover:bg-blue-100 pl-3 pr-8"
         : "hover:bg-gray-50 hover:text-blue-600 text-gray-600 px-3"
     );
   };
@@ -87,36 +97,189 @@ export const DashboardLayout = () => {
     return null;
   };
 
-  const menuItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: <Home className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/users', label: 'Users', icon: <Users className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/category-master', label: 'Category Master', icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/customer-management', label: 'Customer Master', icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/itemConfigurator', label: 'Item Configurator', icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/item-master', label: 'Item Master', icon: <Package className="mr-3 h-4 w-4 flex-shrink-0" /> },
-   { path: '/dashboard/purchaser/qc', label: 'Quality Control', icon: <ShieldCheck className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/purchaser/packing-lists', label: 'Packing Lists', icon: <Boxes className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/purchaser/expenses', label: 'Daily Expenses', icon: <BadgeDollarSign className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/supplierManagement', label: 'Supplier Management', icon: <Truck className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/storeManagement', label: 'Store Management', icon: <Store className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/store/stock', label: 'Store Stock', icon: <Store className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    // { path: '/dashboard/purchaseOrderManagement', label: 'PurchaseOrder Management', icon: <FileText className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/inventoryManagement', label: 'Inventory Management', icon: <Package className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/invoice', label: 'Sales Invoice', icon: <BadgeDollarSign className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/reports', label: 'Reports', icon: <ChartNoAxesCombined className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    // { path: '/dashboard/workflow-config', label: 'Workflow Configuration', icon: <Workflow className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/administration', label: 'Administration', icon: <Building2 className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/administration/currency', label: 'Currency Rates', icon: <Building2 className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    // { path: '/dashboard/purchase-order-approvals', label: 'Purchase Order Approvals', icon: <ClipboardCheck className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    // { path: '/dashboard/return-request', label: 'Returns Management', icon: <SquareChartGantt className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    // { path: '/dashboard/purchase-order-return-approvals', label: 'Purchase Return Requests', icon: <SquareChartGantt className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    // { path: '/dashboard/return-eligible-purchase-orders', label: 'Returns Eligible', icon: <SquareChartGantt className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    // { path: '/dashboard/audit-trial', label: 'Audit Trial', icon: <Clock className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    // { path: '/dashboard/role-management', label: 'Role Management', icon: <Clock className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //  const menuItems = [
+  //   { path: '/dashboard', label: 'Dashboard', icon: <Home className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   { path: '/dashboard/users', label: 'Users', icon: <Users className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   { path: '/dashboard/category-master', label: 'Category Master', icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   { path: '/dashboard/customer-management', label: 'Customer Master', icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   { path: '/dashboard/itemConfigurator', label: 'Item Configurator', icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   { path: '/dashboard/item-master', label: 'Item Master', icon: <Package className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //  { path: '/dashboard/purchaser/qc', label: 'Quality Control', icon: <ShieldCheck className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   { path: '/dashboard/purchaser/packing-lists', label: 'Packing Lists', icon: <Boxes className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   { path: '/dashboard/purchaser/expenses', label: 'Daily Expenses', icon: <BadgeDollarSign className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   { path: '/dashboard/supplierManagement', label: 'Supplier Management', icon: <Truck className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   { path: '/dashboard/storeManagement', label: 'Store Management', icon: <Store className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   { path: '/dashboard/store/stock', label: 'Store Stock', icon: <Store className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   // { path: '/dashboard/purchaseOrderManagement', label: 'PurchaseOrder Management', icon: <FileText className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   { path: '/dashboard/inventoryManagement', label: 'Inventory Management', icon: <Package className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   { path: '/dashboard/invoice', label: 'Sales Invoice', icon: <BadgeDollarSign className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   { path: '/dashboard/reports', label: 'Reports', icon: <ChartNoAxesCombined className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   // { path: '/dashboard/workflow-config', label: 'Workflow Configuration', icon: <Workflow className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   { path: '/dashboard/administration', label: 'Administration', icon: <Building2 className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   { path: '/dashboard/administration/currency', label: 'Currency Rates', icon: <Building2 className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   // { path: '/dashboard/purchase-order-approvals', label: 'Purchase Order Approvals', icon: <ClipboardCheck className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   // { path: '/dashboard/return-request', label: 'Returns Management', icon: <SquareChartGantt className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   // { path: '/dashboard/purchase-order-return-approvals', label: 'Purchase Return Requests', icon: <SquareChartGantt className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   // { path: '/dashboard/return-eligible-purchase-orders', label: 'Returns Eligible', icon: <SquareChartGantt className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   // { path: '/dashboard/audit-trial', label: 'Audit Trial', icon: <Clock className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  //   // { path: '/dashboard/role-management', label: 'Role Management', icon: <Clock className="mr-3 h-4 w-4 flex-shrink-0" /> },
+  // ];
+
+  // All menu items with role access definitions
+  const allMenuItems = [
+    { 
+      path: '/dashboard', 
+      label: 'Dashboard', 
+      icon: <Home className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'admin', 'purchaser', 'biller', 'store']
+    },
+    { 
+      path: '/dashboard/users', 
+      label: 'Users', 
+      icon: <Users className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'admin']
+    },
+    { 
+      path: '/dashboard/category-master', 
+      label: 'Category Master', 
+      icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'admin']
+    },
+    { 
+      path: '/dashboard/customer-management', 
+      label: 'Customer Master', 
+      icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'biller']
+    },
+    { 
+      path: '/dashboard/itemConfigurator', 
+      label: 'Item Configurator', 
+      icon: <LayoutTemplate className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'admin']
+    },
+    { 
+      path: '/dashboard/item-master', 
+      label: 'Item Master', 
+      icon: <Package className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'admin']
+    },
+    { 
+      path: '/dashboard/purchaser/qc', 
+      label: 'Quality Control', 
+      icon: <ShieldCheck className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'purchaser']
+    },
+    { 
+      path: '/dashboard/purchaser/packing-lists', 
+      label: 'Packing Lists', 
+      icon: <Boxes className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'purchaser', 'store']
+    },
+    { 
+      path: '/dashboard/purchaser/expenses', 
+      label: 'Daily Expenses', 
+      icon: <BadgeDollarSign className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'purchaser']
+    },
+    { 
+      path: '/dashboard/supplierManagement', 
+      label: 'Supplier Management', 
+      icon: <Truck className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'purchaser']
+    },
+    { 
+      path: '/dashboard/storeManagement', 
+      label: 'Store Management', 
+      icon: <Store className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'purchaser', 'admin', 'store']
+    },
+    { 
+      path: '/dashboard/store/stock', 
+      label: 'Store Stock', 
+      icon: <Store className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'store']
+    },
+    { 
+      path: '/dashboard/purchaseOrderManagement', 
+      label: 'PurchaseOrder Management', 
+      icon: <FileText className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'purchaser', 'admin']
+    },
+    { 
+      path: '/dashboard/inventoryManagement', 
+      label: 'Inventory Management', 
+      icon: <Package className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'admin']
+    },
+    { 
+      path: '/dashboard/invoice', 
+      label: 'Sales Invoice', 
+      icon: <BadgeDollarSign className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'biller']
+    },
+    { 
+      path: '/dashboard/reports', 
+      label: 'Reports', 
+      icon: <ChartNoAxesCombined className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'admin']
+    },
+    { 
+      path: '/dashboard/administration', 
+      label: 'Administration', 
+      icon: <Building2 className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'admin']
+    },
+    { 
+      path: '/dashboard/administration/currency', 
+      label: 'Currency Rates', 
+      icon: <Building2 className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'admin', 'store']
+    },
+    { 
+      path: '/dashboard/audit-trial', 
+      label: 'Audit Trial', 
+      icon: <Clock className="mr-3 h-4 w-4 flex-shrink-0" />,
+      roles: ['superadmin', 'admin']
+    },
   ];
 
-  const visibleItems = menuItems; 
-  
+  // Filter menu items based on user role
+  const getVisibleMenuItems = () => {
+    if (!userData) {
+      return [];
+    }
+
+    // Get role from userData.role with proper handling
+    let userRoleRaw = 'biller'; // default fallback
+    
+    // Handle different role data structures
+    if (typeof userData.role === 'string') {
+      userRoleRaw = userData.role;
+    } else if (userData.role && typeof userData.role === 'object') {
+      userRoleRaw = userData.role.name || userData.role.role_name || 'biller';
+    } else if (userData.role_name) {
+      userRoleRaw = userData.role_name;
+    } else if (roleName) {
+      userRoleRaw = roleName;
+    }
+    
+    // Normalize role names to lowercase
+    const normalizedRole = userRoleRaw.toLowerCase();
+    
+    console.log('User role raw:899999999999', userData);
+    console.log('Normalized role:', normalizedRole);
+
+    // Superadmin sees everything
+    if (normalizedRole === 'superadmin') {
+      return allMenuItems;
+    }
+    
+    // Filter based on role
+    return allMenuItems.filter(item => item.roles.includes(normalizedRole));
+  };
+
+  const visibleItems = getVisibleMenuItems();
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-md border-b h-16 fixed top-0 left-0 right-0 z-30">
@@ -271,5 +434,3 @@ export const DashboardLayout = () => {
     </div>
   );
 };
-
-
