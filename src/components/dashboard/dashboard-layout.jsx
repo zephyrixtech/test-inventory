@@ -100,7 +100,7 @@ export const DashboardLayout = () => {
     { path: '/dashboard/supplierManagement', label: 'Supplier Management', icon: <Truck className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/storeManagement', label: 'Store Management', icon: <Store className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/store/stock', label: 'Store Stock', icon: <Store className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/purchaseOrderManagement', label: 'PurchaseOrder Management', icon: <FileText className="mr-3 h-4 w-4 flex-shrink-0" /> },
+    // { path: '/dashboard/purchaseOrderManagement', label: 'PurchaseOrder Management', icon: <FileText className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/inventoryManagement', label: 'Inventory Management', icon: <Package className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/invoice', label: 'Sales Invoice', icon: <BadgeDollarSign className="mr-3 h-4 w-4 flex-shrink-0" /> },
     { path: '/dashboard/reports', label: 'Reports', icon: <ChartNoAxesCombined className="mr-3 h-4 w-4 flex-shrink-0" /> },
@@ -111,7 +111,7 @@ export const DashboardLayout = () => {
     // { path: '/dashboard/return-request', label: 'Returns Management', icon: <SquareChartGantt className="mr-3 h-4 w-4 flex-shrink-0" /> },
     // { path: '/dashboard/purchase-order-return-approvals', label: 'Purchase Return Requests', icon: <SquareChartGantt className="mr-3 h-4 w-4 flex-shrink-0" /> },
     // { path: '/dashboard/return-eligible-purchase-orders', label: 'Returns Eligible', icon: <SquareChartGantt className="mr-3 h-4 w-4 flex-shrink-0" /> },
-    { path: '/dashboard/audit-trial', label: 'Audit Trial', icon: <Clock className="mr-3 h-4 w-4 flex-shrink-0" /> },
+    // { path: '/dashboard/audit-trial', label: 'Audit Trial', icon: <Clock className="mr-3 h-4 w-4 flex-shrink-0" /> },
     // { path: '/dashboard/role-management', label: 'Role Management', icon: <Clock className="mr-3 h-4 w-4 flex-shrink-0" /> },
   ];
 
