@@ -9,9 +9,9 @@ import { MessageCircle } from "lucide-react";
 import { v4 as uuidv4 } from 'uuid';
 
 export function ChatWidget() {
-  const [messages, setMessages] = useState([
+  const [messages, setMessages] = useState(() => [
     {
-      id: 1,
+      id: uuidv4(),
       content: "Hello! How can I help you today?",
       role: "assistant",
       timestamp: new Date(),
@@ -29,7 +29,7 @@ export function ChatWidget() {
     // Static response - simulate bot introduction
     setTimeout(() => {
       const botResponse = {
-        id: Date.now(),
+        id: uuidv4(),
         content: "I am the Garage Manager Bot. How can I help you with inventory management today?",
         role: "assistant",
         timestamp: new Date(),
@@ -44,7 +44,7 @@ export function ChatWidget() {
     
     // Add user message
     const userMessage = {
-      id: Date.now(),
+      id: uuidv4(),
       content,
       role: "user",
       timestamp: new Date(),
@@ -74,7 +74,7 @@ export function ChatWidget() {
       }
       
       const botResponse = {
-        id: Date.now() + 1,
+        id: uuidv4(),
         content: botResponseText,
         role: "assistant",
         timestamp: new Date(),
