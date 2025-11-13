@@ -36,11 +36,11 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { supabase } from '@/Utils/types/supabaseClient';
-import { Database } from '@/Utils/types/database.types';
+// Removed supabase import
+import { customerService, type Customer, type CreateCustomerPayload, type UpdateCustomerPayload } from '@/services/customerService'; // Added customerService import
 
 // Database types
-type CustomerInsert = Database['public']['Tables']['customer_mgmt']['Insert'];
+// type CustomerInsert = Database['public']['Tables']['customer_mgmt']['Insert'];
 
 // Form field configuration interface
 interface FormFieldConfig {
@@ -58,7 +58,7 @@ interface FormFieldConfig {
 // Dynamic form configuration
 const formFieldsConfig: FormFieldConfig[] = [
   {
-    name: 'fullname',
+    name: 'name',
     label: 'Full Name',
     type: 'text',
     placeholder: 'Enter full name',
@@ -89,61 +89,55 @@ const formFieldsConfig: FormFieldConfig[] = [
     gridCols: 2,
   },
   {
-    name: 'type',
-    label: 'Customer Type',
-    type: 'select',
-    required: true,
-    icon: User,
-    options: [
-      { value: 'Retail', label: 'Retail' },
-      { value: 'Wholesale', label: 'Wholesale' },
-      { value: 'VIP', label: 'VIP' },
-    ],
-    validation: z.enum(['Retail', 'Wholesale', 'VIP'], {
-      required_error: 'Please select a customer type',
-    }),
-    gridCols: 2,
-  },
-  {
     name: 'status',
     label: 'Status',
     type: 'select',
     required: true,
     icon: CheckCircle,
     options: [
-      { value: 'true', label: 'Active' },
-      { value: 'false', label: 'Inactive' },
+      { value: 'Active', label: 'Active' },
+      { value: 'Inactive', label: 'Inactive' },
     ],
-    validation: z.enum(['true', 'false'], {
+    validation: z.enum(['Active', 'Inactive'], {
       required_error: 'Please select a status',
     }),
     gridCols: 2,
   },
   {
-    name: 'notifications',
-    label: 'Email Alert',
-    type: 'checkbox',
-    icon: Mail,
-    validation: z.boolean().default(false),
-    gridCols: 2,
-  },
-  {
-    name: 'address',
-    label: 'Address',
+    name: 'billingAddress',
+    label: 'Billing Address',
     type: 'textarea',
-    placeholder: 'Enter customer address',
+    placeholder: 'Enter customer billing address',
     icon: MapPin,
     validation: z.string().max(500, 'Address must be less than 500 characters').optional().or(z.literal('')),
     gridCols: 1,
   },
   {
-    name: 'notes',
-    label: 'Notes',
+    name: 'shippingAddress',
+    label: 'Shipping Address',
     type: 'textarea',
-    placeholder: 'Additional notes about the customer',
-    icon: Calendar,
-    validation: z.string().max(1000, 'Notes must be less than 1000 characters').optional().or(z.literal('')),
+    placeholder: 'Enter customer shipping address',
+    icon: MapPin,
+    validation: z.string().max(500, 'Address must be less than 500 characters').optional().or(z.literal('')),
     gridCols: 1,
+  },
+  {
+    name: 'contactPerson',
+    label: 'Contact Person',
+    type: 'text',
+    placeholder: 'Enter contact person name',
+    icon: User,
+    validation: z.string().max(100, 'Contact person name must be less than 100 characters').optional().or(z.literal('')),
+    gridCols: 2,
+  },
+  {
+    name: 'taxNumber',
+    label: 'Tax Number',
+    type: 'text',
+    placeholder: 'Enter tax number',
+    icon: Calendar,
+    validation: z.string().max(50, 'Tax number must be less than 50 characters').optional().or(z.literal('')),
+    gridCols: 2,
   },
 ];
 
@@ -313,10 +307,8 @@ export default function CustomerForm() {
     formFieldsConfig.forEach(field => {
       if (field.type === 'checkbox') {
         defaults[field.name] = false;
-      } else if (field.name === 'type') {
-        defaults[field.name] = 'Retail';
       } else if (field.name === 'status') {
-        defaults[field.name] = 'true';
+        defaults[field.name] = 'Active';
       } else {
         defaults[field.name] = '';
       }
@@ -351,24 +343,35 @@ export default function CustomerForm() {
       const yy = String(now.getFullYear()).slice(-2);
       const todayPrefix = `CUST-${dd}${mm}${yy}-`;
       
-      const { data, error } = await supabase
-        .from('customer_mgmt')
-        .select('customer_id')
-        .eq('company_id', companyId)
-        .like('customer_id', `${todayPrefix}%`)
-        .order('customer_id', { ascending: false })
-        .limit(1);
-      
-      let nextSerial = 1;
-      if (!error && data && data.length > 0 && data[0].customer_id) {
-        const match = data[0].customer_id.match(/-(\d{4})$/);
-        if (match) {
-          nextSerial = parseInt(match[1], 10) + 1;
+      try {
+        // Fetch customers with today's prefix to determine next serial number
+        const response = await customerService.listCustomers({
+          search: todayPrefix
+        });
+        
+        let nextSerial = 1;
+        if (response.data && response.data.length > 0) {
+          // Find the highest serial number
+          const serials = response.data
+            .map(customer => customer.customerId)
+            .filter(id => id.startsWith(todayPrefix))
+            .map(id => {
+              const match = id.match(/-(\d{4})$/);
+              return match ? parseInt(match[1], 10) : 0;
+            });
+          
+          if (serials.length > 0) {
+            nextSerial = Math.max(...serials) + 1;
+          }
         }
+        
+        // Store the generated ID for later use
+        localStorage.setItem('nextCustomerId', generateCustomerId(nextSerial));
+      } catch (err) {
+        console.error('Error generating customer ID:', err);
+        // Fallback to default ID generation
+        localStorage.setItem('nextCustomerId', generateCustomerId());
       }
-      
-      // Store the generated ID for later use
-      localStorage.setItem('nextCustomerId', generateCustomerId(nextSerial));
     };
     
     fetchAndSetNextCustomerId();
@@ -380,42 +383,38 @@ export default function CustomerForm() {
       setIsLoading(true);
       const fetchCustomer = async () => {
         try {
-          const { data, error } = await supabase
-            .from('customer_mgmt')
-            .select('*')
-            .eq('id', id)
-            .eq('company_id', companyId)
-            .single();
+          const response = await customerService.getCustomer(id);
+          const customer = response.data;
 
-          if (error || !data) throw new Error('Failed to fetch customer');
+          if (!customer) throw new Error('Failed to fetch customer');
 
           // Map database fields to form fields
           const formData: any = {};
           formFieldsConfig.forEach(field => {
             switch (field.name) {
-              case 'fullname':
-                formData[field.name] = data.fullname || '';
+              case 'name':
+                formData[field.name] = customer.name || '';
                 break;
               case 'phone':
-                formData[field.name] = data.phone || '';
+                formData[field.name] = customer.phone || '';
                 break;
               case 'email':
-                formData[field.name] = data.email || '';
-                break;
-              case 'type':
-                formData[field.name] = data.type || 'Retail';
+                formData[field.name] = customer.email || '';
                 break;
               case 'status':
-                formData[field.name] = data.status ? 'true' : 'false';
+                formData[field.name] = customer.status || 'Active';
                 break;
-              case 'notifications':
-                formData[field.name] = data.notifications || false;
+              case 'billingAddress':
+                formData[field.name] = customer.billingAddress || '';
                 break;
-              case 'address':
-                formData[field.name] = data.address || '';
+              case 'shippingAddress':
+                formData[field.name] = customer.shippingAddress || '';
                 break;
-              case 'notes':
-                formData[field.name] = data.notes || '';
+              case 'contactPerson':
+                formData[field.name] = customer.contactPerson || '';
+                break;
+              case 'taxNumber':
+                formData[field.name] = customer.taxNumber || '';
                 break;
               default:
                 formData[field.name] = '';
@@ -423,16 +422,17 @@ export default function CustomerForm() {
           });
 
           reset(formData);
-          setCurrentCustomerId(data.customer_id);
+          setCurrentCustomerId(customer.customerId);
         } catch (err) {
           setError('Failed to load customer data');
+          toast.error('Failed to load customer data');
         } finally {
           setIsLoading(false);
         }
       };
       fetchCustomer();
     }
-  }, [id, isEditing, reset, companyId]);
+  }, [id, isEditing, reset]);
 
   // Helper function to clear validation errors
   const clearValidationErrors = () => {
@@ -466,92 +466,55 @@ export default function CustomerForm() {
       setIsLoading(true);
 
       // Map form data to database fields
-      const customerPayload: CustomerInsert = {
-        fullname: data.fullname,
+      const customerPayload: CreateCustomerPayload | UpdateCustomerPayload = {
+        name: data.name,
         phone: data.phone,
-        email: data.email || null,
-        address: data.address || '',
-        type: data.type,
-        notes: data.notes || null,
-        status: data.status === 'true',
-        notifications: data.notifications,
-        company_id: companyId,
-        created_by: userId,
-        modified_at: isEditing ? new Date().toISOString() : undefined,
-        modified_by: isEditing ? userId : undefined,
+        email: data.email || undefined,
+        billingAddress: data.billingAddress || '',
+        shippingAddress: data.shippingAddress || '',
+        contactPerson: data.contactPerson || '',
+        taxNumber: data.taxNumber || '',
+        status: data.status,
+        company: companyId || ''
       };
 
       if (isEditing && id) {
-        const { data: updatedCustomer, error } = await supabase
-          .from('customer_mgmt')
-          .update(customerPayload)
-          .eq('id', id)
-          .eq('company_id', companyId)
-          .select()
-          .single();
-        
-        if (error || !updatedCustomer) throw error || new Error('Customer update failed');
-
-        // Create system log
-        const systemLogs = {
-          company_id: companyId,
-          transaction_date: new Date().toISOString(),
-          module: 'Customer Management',
-          scope: 'Edit',
-          key: `${currentCustomerId}`,
-          log: `Customer: ${currentCustomerId} updated.`,
-          action_by: userId,
-          created_at: new Date().toISOString(),
+        // Update existing customer
+        const updatePayload: UpdateCustomerPayload = {
+          ...customerPayload,
+          company: undefined // Remove company from update payload
         };
-
-        const { error: systemLogError } = await supabase
-          .from('system_log')
-          .insert(systemLogs);
-
-        if (systemLogError) throw systemLogError;
+        
+        const response = await customerService.updateCustomer(id, updatePayload);
+        
+        if (!response.data) throw new Error('Customer update failed');
+        
+        toast.success('Customer updated successfully!');
       } else {
         // Get the generated customer ID
         const nextCustomerId = localStorage.getItem('nextCustomerId') || generateCustomerId();
         
-        const { data: newCustomer, error } = await supabase
-          .from('customer_mgmt')
-          .insert([{
-            ...customerPayload,
-            customer_id: nextCustomerId,
-            created_at: new Date().toISOString(),
-          }])
-          .select()
-          .single();
+        // Add customerId to the payload for creation
+        const createPayload: CreateCustomerPayload = {
+          ...customerPayload,
+          customerId: nextCustomerId
+        } as CreateCustomerPayload;
         
-        if (error || !newCustomer) throw error || new Error('Customer creation failed');
-
-        // Create system log
-        const systemLogs = {
-          company_id: companyId,
-          transaction_date: new Date().toISOString(),
-          module: 'Customer Management',
-          scope: 'Add',
-          key: `${nextCustomerId}`,
-          log: `Customer: ${nextCustomerId} created.`,
-          action_by: userId,
-          created_at: new Date().toISOString(),
-        };
-
-        const { error: systemLogError } = await supabase
-          .from('system_log')
-          .insert(systemLogs);
-
-        if (systemLogError) throw systemLogError;
-
+        const response = await customerService.createCustomer(createPayload);
+        
+        if (!response.data) throw new Error('Customer creation failed');
+        
         // Clear the stored customer ID
         localStorage.removeItem('nextCustomerId');
+        
+        toast.success('Customer created successfully!');
       }
 
-      toast.success(`${isEditing ? 'Customer updated successfully!' : 'Customer created successfully!'}`);
       setTimeout(() => navigate('/dashboard/customer-management'), 1000);
     } catch (error: any) {
       console.error('Error submitting form:', error);
       setError(error.message || 'Failed to save customer. Please check all fields and try again.');
+      toast.error(error.message || 'Failed to save customer. Please check all fields and try again.');
     } finally {
       setIsLoading(false);
     }
