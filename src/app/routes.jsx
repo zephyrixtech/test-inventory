@@ -48,6 +48,9 @@ import PurchaseReturnRequests from '@/pages/purchaseReturnRequest/PurchaseReturn
 import PurchaseReturnView from '@/pages/purchaseReturnRequest/PurchaseReturnView';
 import CurrencyRatesPage from '@/pages/administration/CurrencyRatesPage';
 import QualityControlPage from '@/pages/purchaser/QC';
+import {PackingListsPage} from '@/pages/purchaser/PackingLists'
+import { DailyExpensesPage } from "@/pages/purchaser/dailyExpenses";
+import { StoreStockPage } from "@/pages/store/StoreStock";
 
 
 const protectedRoutes = [
@@ -70,6 +73,7 @@ const protectedRoutes = [
   { path: 'storeManagement', element: <StoreManagement />, module: 'Store Management' },
   { path: 'store/add', element: <AddStoreForm />, module: 'Store Management' },
   { path: 'store/edit/:id', element: <AddStoreForm />, module: 'Store Management' },
+  { path: 'store/stock', element: <StoreStockPage />, module: 'Store Stock' },
   { path: 'warehouseManagement', element: <WarehouseManagement />, module: 'Inventory Management' },
   { path: 'items', element: <ItemManagement />, module: 'Item Master' },
   { path: 'invoice', element: <SalesInvoiceList />, module: 'Sales Invoice' },
@@ -105,6 +109,8 @@ const protectedRoutes = [
   { path: 'customer-management/edit/:id', element: <CustomerForm />, module: 'Customer Master' },
   { path: 'customer-management/view/:id', element: <CustomerView />, module: 'Customer Master' },
   { path: 'purchaser/qc', element: <QualityControlPage />, module: 'Quality Control' },
+  { path: 'purchaser/packing-lists',element: <PackingListsPage /> ,module: 'Packing Lists'},
+  { path: 'purchaser/expenses',element: <DailyExpensesPage /> ,module: 'Daily Expenses'}
 ];
 
 const unprotectedRoutes = [
