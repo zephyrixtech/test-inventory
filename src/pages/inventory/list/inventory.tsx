@@ -224,7 +224,7 @@ export const Inventory = () => {
             <Button variant="outline" onClick={exportItemsToCSV}>
               <Download className="mr-2 h-4 w-4" /> Export
             </Button>
-            <Button onClick={() => navigate('/inventory/create')}>
+            <Button onClick={() => navigate('/dashboard/item-master/add')}>
               <Plus className="mr-2 h-4 w-4" /> Add Item
             </Button>
           </div>
