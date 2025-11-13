@@ -44,8 +44,9 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import toast from "react-hot-toast";
+import { supplierService } from "@/services/supplierService";
 
-// Mock Data
+// Mock Data for brands and supplies (in a real app, these would come from APIs)
 const mockBrands = [
   { id: "1", name: "Apple" },
   { id: "2", name: "Samsung" },
@@ -61,36 +62,6 @@ const mockSupplies = [
   { id: "4", name: "XPS 13", description: "Premium ultrabook", price: 1299, category_id: "4" },
   { id: "5", name: "Pavilion 15", description: "Everyday laptop", price: 699, category_id: "5" },
 ];
-
-// Mock supplier for edit/view mode
-const mockSupplier = {
-  id: "1",
-  companyId: "SUP-001",
-  name: "TechGear Ltd",
-  registrationNumber: "REG123456",
-  taxId: "TAX789012",
-  contactPerson: "John Smith",
-  email: "john@techgear.com",
-  phone: "+15550101",
-  website: "https://techgear.com",
-  address: "123 Tech Street",
-  city: "San Francisco",
-  state: "CA",
-  postalCode: "94105",
-  country: "USA",
-  bankName: "Chase Bank",
-  bank_account_number: "1234567890",
-  ifscCode: "CHASUS33",
-  ibanCode: "US12CHAS1234567890",
-  creditLimit: 50000,
-  paymentTerms: "Net 30",
-  description: "Leading supplier of premium electronics.",
-  status: "Active",
-  rating: 4.5,
-  notes: "Reliable partner with fast shipping.",
-  selectedBrands: ["1", "2"],
-  selectedSupplies: ["1", "2"],
-};
 
 const formatCurrency = (value) => `$${value.toLocaleString()}`;
 
@@ -163,6 +134,7 @@ const SupplierForm = () => {
   const [tempSelectedSupplies, setTempSelectedSupplies] = useState([]);
   const [isBrandsExpanded, setIsBrandsExpanded] = useState(false);
   const [isSuppliesExpanded, setIsSuppliesExpanded] = useState(false);
+  const [supplierData, setSupplierData] = useState(null);
 
   const {
     register,
@@ -193,7 +165,7 @@ const SupplierForm = () => {
       creditLimit: 0,
       paymentTerms: "",
       description: "",
-      status: "Active",
+      status: "approved",
       rating: 0,
       notes: "",
     },
@@ -201,42 +173,64 @@ const SupplierForm = () => {
 
   const watched = watch();
 
-  // Load mock data on edit/view
+  // Load supplier data when editing
   useEffect(() => {
-    if (isEditing && id === "1") {
-      const supplier = mockSupplier;
+    if (isEditing) {
+      fetchSupplierData();
+    }
+  }, [id, isEditing]);
+
+  const fetchSupplierData = async () => {
+    try {
+      const response = await supplierService.getSupplier(id);
+      console.log("Supplier data response:", response); // For debugging
+      
+      // Access the data correctly based on the actual API response structure
+      const supplier = response.data;
+      
+      setSupplierData(supplier);
+      
       reset({
-        companyId: supplier.companyId,
+        companyId: supplier.supplierId,
         name: supplier.name,
-        registrationNumber: supplier.registrationNumber,
-        taxId: supplier.taxId,
-        contactPerson: supplier.contactPerson,
-        email: supplier.email,
-        phone: supplier.phone,
-        website: supplier.website,
-        address: supplier.address,
-        city: supplier.city,
-        state: supplier.state,
-        postalCode: supplier.postalCode,
-        country: supplier.country,
-        bankName: supplier.bankName,
-        bank_account_number: supplier.bank_account_number,
-        ifscCode: supplier.ifscCode,
-        ibanCode: supplier.ibanCode,
-        creditLimit: supplier.creditLimit,
-        paymentTerms: supplier.paymentTerms,
-        description: supplier.description,
-        status: supplier.status,
-        rating: supplier.rating,
-        notes: supplier.notes,
+        registrationNumber: supplier.registrationNumber || "",
+        taxId: supplier.taxId || "",
+        contactPerson: supplier.contactPerson || "",
+        email: supplier.email || "",
+        phone: supplier.phone || "",
+        website: supplier.website || "",
+        address: supplier.address || "",
+        city: supplier.city || "",
+        state: supplier.state || "",
+        postalCode: supplier.postalCode || "",
+        country: supplier.country || "",
+        bankName: supplier.bankName || "",
+        bank_account_number: supplier.bank_account_number || "",
+        ifscCode: supplier.ifscCode || "",
+        ibanCode: supplier.ibanCode || "",
+        creditLimit: supplier.creditLimit || 0,
+        paymentTerms: supplier.paymentTerms || "",
+        description: supplier.description || "",
+        status: supplier.status || "approved",
+        rating: supplier.rating || 0,
+        notes: supplier.notes || "",
       });
 
-      const brands = mockBrands.filter(b => supplier.selectedBrands.includes(b.id));
-      const supplies = mockSupplies.filter(s => supplier.selectedSupplies.includes(s.id));
-      setSelectedBrands(brands);
-      setSelectedSupplies(supplies);
+      // Set selected brands and supplies if they exist
+      if (supplier.selectedBrands) {
+        const brands = mockBrands.filter(b => supplier.selectedBrands.includes(b.id));
+        setSelectedBrands(brands);
+      }
+      
+      if (supplier.selectedSupplies) {
+        const supplies = mockSupplies.filter(s => supplier.selectedSupplies.includes(s.id));
+        setSelectedSupplies(supplies);
+      }
+    } catch (error) {
+      console.error("Error fetching supplier:", error);
+      toast.error("Failed to load supplier data");
     }
-  }, [id, isEditing, reset]);
+  };
 
   // Filter brands
   useEffect(() => {
@@ -341,11 +335,46 @@ const SupplierForm = () => {
   const onSubmit = async (data) => {
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API
-      toast.success(isEditing ? "Supplier updated!" : "Supplier created!");
+      const supplierData = {
+        supplierId: data.companyId,
+        name: data.name,
+        registrationNumber: data.registrationNumber,
+        taxId: data.taxId,
+        contactPerson: data.contactPerson,
+        email: data.email,
+        phone: data.phone,
+        website: data.website,
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        postalCode: data.postalCode,
+        country: data.country,
+        bankName: data.bankName,
+        bank_account_number: data.bank_account_number,
+        ifscCode: data.ifscCode,
+        ibanCode: data.ibanCode,
+        creditLimit: data.creditLimit,
+        paymentTerms: data.paymentTerms,
+        description: data.description,
+        status: data.status,
+        rating: data.rating,
+        notes: data.notes,
+        selectedBrands: selectedBrands.map(b => b.id),
+        selectedSupplies: selectedSupplies.map(s => s.id),
+      };
+
+      if (isEditing) {
+        await supplierService.updateSupplier(id, supplierData);
+        toast.success("Supplier updated successfully!");
+      } else {
+        await supplierService.createSupplier(supplierData);
+        toast.success("Supplier created successfully!");
+      }
+      
       setTimeout(() => navigate("/dashboard/supplierManagement"), 1000);
-    } catch {
-      toast.error("Something went wrong.");
+    } catch (error) {
+      console.error("Error saving supplier:", error);
+      toast.error(isEditing ? "Failed to update supplier" : "Failed to create supplier");
     } finally {
       setIsLoading(false);
     }
@@ -614,12 +643,12 @@ const SupplierForm = () => {
                   </div>
                   <div className="md:col-span-2">
                     <Label>Status *</Label>
-                    <Select onValueChange={(v) => setValue("status", v)} defaultValue="Active" disabled={isViewMode}>
+                    <Select onValueChange={(v) => setValue("status", v)} defaultValue="approved" disabled={isViewMode}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Active">Active</SelectItem>
-                        <SelectItem value="Inactive">Inactive</SelectItem>
-                        <SelectItem value="Pending">Pending</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="approved">Approved</SelectItem>
+                        <SelectItem value="rejected">Rejected</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

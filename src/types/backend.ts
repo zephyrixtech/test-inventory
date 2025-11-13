@@ -97,3 +97,33 @@ export interface AuthResponse {
   user: AuthUser;
 }
 
+export interface Supplier {
+  _id: string;
+  supplierId: string;
+  name: string;
+  registrationNumber?: string;
+  taxId?: string;
+  contactPerson?: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  bankName?: string;
+  bank_account_number?: string;
+  ifscCode?: string;
+  ibanCode?: string;
+  creditLimit?: number;
+  paymentTerms?: string;
+  description?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rating?: number;
+  notes?: string;
+  selectedBrands?: string[];
+  selectedSupplies?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
