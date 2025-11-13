@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus,
@@ -52,93 +52,87 @@ import {
 } from '@/components/ui/dialog';
 import toast from 'react-hot-toast';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { userService } from '@/services/userService';
 
-// Static data instead of API calls
-const staticUsers = [
-  {
-    id: "user001",
-    first_name: "John",
-    last_name: "Doe",
-    email: "john.doe@example.com",
-    role_id: "role001",
-    status: "active",
-    failed_attempts: 0
-  },
-  {
-    id: "user002",
-    first_name: "Jane",
-    last_name: "Smith",
-    email: "jane.smith@example.com",
-    role_id: "role002",
-    status: "active",
-    failed_attempts: 0
-  },
-  {
-    id: "user003",
-    first_name: "Robert",
-    last_name: "Johnson",
-    email: "robert.johnson@example.com",
-    role_id: "role003",
-    status: "inactive",
-    failed_attempts: 3
-  },
-  {
-    id: "user004",
-    first_name: "Emily",
-    last_name: "Williams",
-    email: "emily.williams@example.com",
-    role_id: "role001",
-    status: "active",
-    failed_attempts: 0
-  },
-  {
-    id: "user005",
-    first_name: "Michael",
-    last_name: "Brown",
-    email: "michael.brown@example.com",
-    role_id: "role004",
-    status: "inactive",
-    failed_attempts: 1
-  }
-];
-
-const staticRoles = [
-  { id: "role001", name: "Admin" },
-  { id: "role002", name: "Manager" },
-  { id: "role003", name: "User" },
-  { id: "role004", name: "Super Admin" }
+const ROLE_OPTIONS = [
+  { id: "admin", name: "Admin" },
+  { id: "purchaser", name: "Purchaser" },
+  { id: "biller", name: "Biller" }
 ];
 
 // Sort configuration
 const statusColorMap = {
   active: 'bg-green-100 text-green-800 border-green-300',
   inactive: 'bg-amber-100 text-amber-800 border-amber-300',
+  locked: 'bg-red-100 text-red-800 border-red-300',
 };
 
 export const UsersManagement = () => {
   const navigate = useNavigate();
-  const user = localStorage.getItem('userData');
-  const userData = user ? JSON.parse(user) : null;
-  const companyId = userData?.company_id || '';
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [sortConfig, setSortConfig] = useState({
-    field: 'first_name',
-    direction: 'asc'
+    field: null,
+    direction: null
   });
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterRole, setFilterRole] = useState('all');
-  const [users, setAllUsers] = useState([]);
-  const [roles, setRoles] = useState(staticRoles);
+  const [users, setUsers] = useState([]);
   const [pagination, setPagination] = useState({
-    total: staticUsers.length,
-    totalPages: Math.ceil(staticUsers.length / itemsPerPage)
+    total: 0,
+    totalPages: 1
   });
   const [loading, setLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState();
-  const [usersInActiveStores, setUsersInActiveStores] = useState(new Set());
+
+  const fetchUsersData = useCallback(async () => {
+    setLoading(true);
+
+    try {
+      const response = await userService.list({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: searchQuery.trim() || undefined,
+        status: filterStatus,
+        role: filterRole,
+        sortBy: sortConfig.field ?? undefined,
+        sortOrder: sortConfig.direction ?? undefined
+      });
+
+      const total = response?.meta?.total ?? 0;
+      const totalPages = response?.meta?.totalPages ?? 1;
+
+      if (totalPages > 0 && currentPage > totalPages) {
+        setCurrentPage(totalPages);
+        return;
+      }
+
+      // Filter out superadmin users from the display
+      const filteredUsers = (response?.data ?? []).filter(user => user.role !== 'superadmin');
+
+      setUsers(filteredUsers);
+      setPagination({
+        total: filteredUsers.length,
+        totalPages: Math.ceil(filteredUsers.length / itemsPerPage)
+      });
+    } catch (error) {
+      console.error('Failed to fetch users', error);
+      const message = error instanceof Error ? error.message : 'Failed to fetch users';
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    currentPage,
+    itemsPerPage,
+    searchQuery,
+    filterStatus,
+    filterRole,
+    sortConfig.field,
+    sortConfig.direction
+  ]);
 
   // Sort function
   const handleSort = (field) => {
@@ -173,131 +167,45 @@ export const UsersManagement = () => {
     return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
   };
 
-  // Filter and sort users
-  const processUsers = () => {
-    setLoading(true);
-    
-    // Simulate API delay
-    setTimeout(() => {
-      let filteredUsers = [...staticUsers];
-      
-      // Apply search filter
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        filteredUsers = filteredUsers.filter(user => 
-          (user.first_name && user.first_name.toLowerCase().includes(query)) ||
-          (user.last_name && user.last_name.toLowerCase().includes(query)) ||
-          (user.email && user.email.toLowerCase().includes(query))
-        );
-      }
-      
-      // Apply status filter
-      if (filterStatus !== 'all') {
-        filteredUsers = filteredUsers.filter(user => user.status === filterStatus);
-      }
-      
-      // Apply role filter
-      if (filterRole !== 'all') {
-        filteredUsers = filteredUsers.filter(user => user.role_id === filterRole);
-      }
-      
-      // Apply sorting
-      if (sortConfig.field && sortConfig.direction) {
-        filteredUsers.sort((a, b) => {
-          const aValue = a[sortConfig.field];
-          const bValue = b[sortConfig.field];
-          
-          if (aValue < bValue) {
-            return sortConfig.direction === 'asc' ? -1 : 1;
-          }
-          if (aValue > bValue) {
-            return sortConfig.direction === 'asc' ? 1 : -1;
-          }
-          return 0;
-        });
-      }
-      
-      // Apply pagination
-      const total = filteredUsers.length;
-      const totalPages = Math.ceil(total / itemsPerPage);
-      const from = (currentPage - 1) * itemsPerPage;
-      const to = from + itemsPerPage;
-      const paginatedUsers = filteredUsers.slice(from, to);
-      
-      // Add role information to users
-      const roleMap = {};
-      staticRoles.forEach(role => {
-        roleMap[role.id] = role.name;
-      });
-      
-      const extendedUsers = paginatedUsers.map(user => ({
-        ...user,
-        role: {
-          id: user.role_id,
-          role_name: user.role_id ? (roleMap[user.role_id] || 'No Role') : 'No Role'
-        }
-      }));
-      
-      setAllUsers(extendedUsers);
-      setPagination({
-        total,
-        totalPages
-      });
-      
-      setLoading(false);
-    }, 300);
-  };
+  useEffect(() => {
+    fetchUsersData();
+  }, [fetchUsersData]);
 
   // Export users to CSV
-  const exportUsersToCSV = () => {
+  const exportUsersToCSV = async () => {
     try {
-      // Create CSV content
-      const csvHeaders = ['First Name', 'Last Name', 'Email', 'Role', 'Status'];
-      
-      // Get all filtered users for export
-      let exportUsers = [...staticUsers];
-      
-      // Apply search filter
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        exportUsers = exportUsers.filter(user => 
-          (user.first_name && user.first_name.toLowerCase().includes(query)) ||
-          (user.last_name && user.last_name.toLowerCase().includes(query)) ||
-          (user.email && user.email.toLowerCase().includes(query))
-        );
-      }
-      
-      // Apply status filter
-      if (filterStatus !== 'all') {
-        exportUsers = exportUsers.filter(user => user.status === filterStatus);
-      }
-      
-      // Apply role filter
-      if (filterRole !== 'all') {
-        exportUsers = exportUsers.filter(user => user.role_id === filterRole);
-      }
-      
-      // Create role map
-      const roleMap = {};
-      staticRoles.forEach(role => {
-        roleMap[role.id] = role.name;
+      const response = await userService.list({
+        page: 1,
+        limit: 1000,
+        search: searchQuery.trim() || undefined,
+        status: filterStatus,
+        role: filterRole,
+        sortBy: sortConfig.field ?? undefined,
+        sortOrder: sortConfig.direction ?? undefined
       });
-      
-      const csvRows = exportUsers.map(user => [
-        user.first_name || '',
-        user.last_name || '',
+
+      // Filter out superadmin users from export as well
+      const exportUsers = (response?.data ?? []).filter(user => user.role !== 'superadmin');
+
+      if (exportUsers.length === 0) {
+        toast.error('No users available to export');
+        return;
+      }
+
+      const csvHeaders = ['First Name', 'Last Name', 'Email', 'Role', 'Status'];
+      const csvRows = exportUsers.map((user) => [
+        user.firstName || '',
+        user.lastName || '',
         user.email || '',
-        roleMap[user.role_id || ''] || 'No Role',
-        user.status || '',
+        ROLE_OPTIONS.find((role) => role.id === user.role)?.name || user.role || '',
+        user.status || ''
       ]);
-      
-      // Create CSV content
+
       const csvContent = [
         csvHeaders.join(','),
-        ...csvRows.map(row => row.map(cell => `"${cell}"`).join(','))
+        ...csvRows.map((row) => row.map((cell) => `"${cell}"`).join(','))
       ].join('\n');
-      
-      // Download CSV
+
       const blob = new Blob([csvContent], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -305,21 +213,30 @@ export const UsersManagement = () => {
       a.download = 'users-data.csv';
       a.click();
       window.URL.revokeObjectURL(url);
-      
+
       toast.success('Users exported successfully');
-    } catch (err) {
-      toast.error(`Failed to export users: ${err.message}`);
+    } catch (error) {
+      console.error('Failed to export users', error);
+      const message = error instanceof Error ? error.message : 'Failed to export users';
+      toast.error(`Failed to export users: ${message}`);
     }
   };
 
   // Delete user
-  const deleteUser = () => {
-    if (!userToDelete) return;
-    
-    toast.success("User deleted successfully!", { position: 'top-right' });
-    processUsers();
-    setIsDialogOpen(false);
-    setUserToDelete(undefined);
+  const handleDeleteUser = async () => {
+    if (!userToDelete?.id) return;
+
+    try {
+      await userService.deactivate(userToDelete.id);
+      toast.success("User deleted successfully!", { position: 'top-right' });
+      setIsDialogOpen(false);
+      setUserToDelete(undefined);
+      fetchUsersData();
+    } catch (error) {
+      console.error('Failed to delete user', error);
+      const message = error instanceof Error ? error.message : 'Failed to delete user';
+      toast.error(message);
+    }
   };
 
   const openDeleteDialog = (user) => {
@@ -340,11 +257,6 @@ export const UsersManagement = () => {
     if (!status) return 'bg-gray-100 text-gray-800 border-gray-300';
     return statusColorMap[status] || 'bg-gray-100 text-gray-800';
   };
-
-  // Process users when filters change
-  useEffect(() => {
-    processUsers();
-  }, [currentPage, itemsPerPage, sortConfig, searchQuery, filterStatus, filterRole]);
 
   return (
     <div className="p-6">
@@ -417,6 +329,7 @@ export const UsersManagement = () => {
                       <SelectItem value="all">All Status</SelectItem>
                       <SelectItem value="active">Active</SelectItem>
                       <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="locked">Locked</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select
@@ -431,7 +344,7 @@ export const UsersManagement = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Roles</SelectItem>
-                      {roles.map((role) => (
+                      {ROLE_OPTIONS.map((role) => (
                         <SelectItem key={role.id} value={role.id}>
                           {role.name || 'Unnamed Role'}
                         </SelectItem>
@@ -456,19 +369,19 @@ export const UsersManagement = () => {
                     <TableHead className="font-semibold w-1/6">
                       <p
                         className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600 ps-2"
-                        onClick={() => handleSort('first_name')}
+                        onClick={() => handleSort('firstName')}
                       >
                         First Name
-                        {getSortIcon('first_name')}
+                        {getSortIcon('firstName')}
                       </p>
                     </TableHead>
                     <TableHead className="font-semibold w-1/6">
                       <p
                         className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600"
-                        onClick={() => handleSort('last_name')}
+                        onClick={() => handleSort('lastName')}
                       >
                         Last Name
-                        {getSortIcon('last_name')}
+                        {getSortIcon('lastName')}
                       </p>
                     </TableHead>
                     <TableHead className="font-semibold">
@@ -509,49 +422,46 @@ export const UsersManagement = () => {
                     ))
                   ) : users.length > 0 ? (
                     users.map((user) => {
-                      const isSuperAdmin = user.role.role_name === 'Super Admin';
-                      const isStoreManagerInActiveStore = usersInActiveStores.has(user.id);
-                      const isDeleteDisabled = isSuperAdmin || isStoreManagerInActiveStore;
-
+                      const isSuperAdmin = user.role === 'superadmin';
                       return (
                         <TableRow key={user.id} className="hover:bg-gray-50">
                           <TableCell className="font-medium py-3">
                             <span className="font-medium ps-2">
-                              {user.first_name || ''}
+                              {user.firstName || ''}
                             </span>
                           </TableCell>
-                          <TableCell className="font-medium py-3">{user.last_name || ''}</TableCell>
+                          <TableCell className="font-medium py-3">{user.lastName || ''}</TableCell>
                           <TableCell>{user.email || 'No Email'}</TableCell>
-                          <TableCell className="">
+                          <TableCell>
                             <Badge variant="outline" className="capitalize bg-blue-50 text-blue-700 border-blue-300 font-medium">
                               <UserRound className="h-3 w-3 mr-1" />
-                              {user.role.role_name}
+                              {ROLE_OPTIONS.find((role) => role.id === user.role)?.name || user.role}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-left">
-                            <Badge
-                              variant="outline"
-                              className={`capitalize ${getStatusColor(user.status)} font-medium`}
-                            >
-                              {user.status || 'No Status'}
-                            </Badge>
-                            {
-                              user.status === 'inactive' && user.failed_attempts === 3 && (
+                            <div className="flex items-center gap-1">
+                              <Badge
+                                variant="outline"
+                                className={`capitalize ${getStatusColor(user.status)} font-medium`}
+                              >
+                                {user.status || 'No Status'}
+                              </Badge>
+                              {user.status === 'locked' && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Badge
                                       variant="outline"
                                       className="capitalize font-medium ms-1 bg-gray-100 text-gray-800 border-gray-300"
                                     >
-                                      <Lock />
+                                      <Lock className="h-3 w-3" />
                                     </Badge>
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    <p>Account is locked.</p>
+                                    <p>Account is locked due to failed login attempts.</p>
                                   </TooltipContent>
                                 </Tooltip>
-                              )
-                            }
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-center gap-2">
@@ -562,7 +472,7 @@ export const UsersManagement = () => {
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              {isDeleteDisabled ? (
+                              {isSuperAdmin ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <div>
@@ -577,11 +487,7 @@ export const UsersManagement = () => {
                                     </div>
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    <p>
-                                      {isSuperAdmin
-                                        ? 'Cannot delete Superadmin users.'
-                                        : 'This user is an active store manager and cannot be deleted.'}
-                                    </p>
+                                    <p>Cannot delete Superadmin users.</p>
                                   </TooltipContent>
                                 </Tooltip>
                               ) : (
@@ -694,7 +600,7 @@ export const UsersManagement = () => {
               </DialogClose>
               <Button
                 variant="destructive"
-                onClick={deleteUser}
+                onClick={handleDeleteUser}
               >
                 Yes
               </Button>

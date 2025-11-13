@@ -34,7 +34,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { fetchUsers, fetchRoles, createUser, updateUser, deleteUser } from '@/services/staticDataService';
+import { userService } from '@/services/userService';
+
+const ROLE_OPTIONS = [
+  { id: 'admin', name: 'Admin' },
+  { id: 'purchaser', name: 'Purchaser' },
+  { id: 'biller', name: 'Biller' }
+];
+
+const STATUS_OPTIONS = ['active', 'inactive', 'locked'];
 
 // Simple Modal Component
 const ConfirmationModal = ({
@@ -89,7 +97,7 @@ export const UserForm = () => {
   const [error, setError] = useState('');
   const [formStatus, setFormStatus] = useState('idle'); // 'idle', 'submitting', 'success', 'error'
   const [currentStatus, setCurrentStatus] = useState('active');
-  const [allRoles, setAllRoles] = useState([]);
+  const [allRoles] = useState(ROLE_OPTIONS);
   const [currentUser, setCurrentUser] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -102,9 +110,6 @@ export const UserForm = () => {
   const [imageRemoved, setImageRemoved] = useState(false);
   const fileInputRef = useRef(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-  const user = localStorage.getItem("userData");
-  const userData = user ? JSON.parse(user) : {};
 
   // Form state
   const [formData, setFormData] = useState({
@@ -154,23 +159,6 @@ export const UserForm = () => {
     }
   }, [resetPassword, isEditing]);
 
-  // Fetch all roles
-  useEffect(() => {
-    const fetchRolesData = async () => {
-      try {
-        const { data } = await fetchRoles();
-        if (data) {
-          const filtered = data.filter((role) => role.name !== 'Super Admin');
-          setAllRoles(filtered);
-        }
-      } catch (err) {
-        console.error('Error fetching roles:', err);
-        toast.error('Failed to fetch roles');
-      }
-    }
-    fetchRolesData();
-  }, []);
-
   // Fetch user details when editing
   useEffect(() => {
     if (isEditing && id) {
@@ -185,6 +173,8 @@ export const UserForm = () => {
         return 'text-green-600';
       case 'inactive':
         return 'text-amber-500';
+      case 'locked':
+        return 'text-red-500';
       default:
         return 'text-gray-600';
     }
@@ -197,6 +187,8 @@ export const UserForm = () => {
         return 'bg-green-500';
       case 'inactive':
         return 'bg-amber-500';
+      case 'locked':
+        return 'bg-red-500';
       default:
         return 'bg-gray-500';
     }
@@ -209,40 +201,32 @@ export const UserForm = () => {
 
       setIsLoading(true);
 
-      const { data, error } = await fetchUsers();
-      if (error) {
-        console.error('Error fetching user:', error);
-        setError('Failed to fetch user data');
-        toast.error('Failed to fetch user data');
-        return;
-      }
+      const response = await userService.get(id);
+      const user = response?.data;
 
-      const user = data.find(u => u.id === id);
       if (!user) {
-        setError('User not found');
-        toast.error('User not found');
-        return;
+        throw new Error('User not found');
       }
 
       setCurrentUser(user);
 
       setFormData({
-        firstName: user.first_name || '',
-        lastName: user.last_name || '',
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
         email: user.email || '',
-        role: user.role_id || '',
+        role: user.role || '',
         status: user.status || 'active',
         password: '',
         image: null,
       });
 
-      // Set status
       setCurrentStatus(user.status || 'active');
 
     } catch (error) {
       console.error('Fetch user error:', error);
-      setError('Failed to fetch user data');
-      toast.error('Failed to fetch user data');
+      const message = error instanceof Error ? error.message : 'Failed to fetch user data';
+      setError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -303,55 +287,41 @@ export const UserForm = () => {
         throw new Error('Selected role not found');
       }
 
-      // Check if email already exists
-      const { data: existingUsers } = await fetchUsers();
-      const existingUser = existingUsers.find(user => 
-        user.email === formData.email && (isEditing ? user.id !== id : true)
-      );
-      
-      if (existingUser) {
-        throw new Error('Email already exists');
-      }
-
       if (isEditing) {
-        // Update existing user
-        const updateData = {
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          email: formData.email,
-          role_id: selectedRole.id,
-          status: formData.status,
-          modified_at: new Date().toISOString(),
-        };
-
-        // Only include password if resetting
-        if (resetPassword) {
-          updateData.password = formData.password;
+        if (!id) {
+          throw new Error('Missing user identifier');
         }
 
-        const { data, error } = await updateUser(id, updateData);
-        if (error) throw new Error(error.message);
-
-        toast.success('User updated successfully!');
-      } else {
-        // Create new user
-        const createData = {
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          email: formData.email,
-          role_id: selectedRole.id,
+        const updatePayload = {
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          email: formData.email.trim(),
+          role: selectedRole.id,
           status: formData.status,
-          password: formData.password,
-          is_active: true,
-          company_id: userData.company_id,
-          created_at: new Date().toISOString(),
-          modified_at: new Date().toISOString(),
         };
 
-        const { data, error } = await createUser(createData);
-        if (error) throw new Error(error.message);
+        if (resetPassword) {
+          updatePayload.password = formData.password;
+        }
 
-        toast.success('User created successfully!');
+        const response = await userService.update(id, updatePayload);
+        const successMessage = response?.meta?.message ?? 'User updated successfully!';
+
+        toast.success(successMessage);
+      } else {
+        const createPayload = {
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          email: formData.email.trim(),
+          role: selectedRole.id,
+          status: formData.status,
+          password: formData.password,
+        };
+
+        const response = await userService.create(createPayload);
+        const successMessage = response?.meta?.message ?? 'User created successfully!';
+
+        toast.success(successMessage);
       }
 
       setFormStatus('success');
@@ -363,9 +333,10 @@ export const UserForm = () => {
 
     } catch (error) {
       console.error('Form submission error:', error);
-      setError(error.message || 'An error occurred');
+      const message = error instanceof Error ? error.message : 'An error occurred';
+      setError(message);
       setFormStatus('error');
-      toast.error(error.message || 'Failed to save user');
+      toast.error(message || 'Failed to save user');
     } finally {
       setIsLoading(false);
     }
@@ -377,15 +348,14 @@ export const UserForm = () => {
 
     try {
       setIsDeleting(true);
-      const { error } = await deleteUser(id);
-
-      if (error) throw error;
+      await userService.deactivate(id);
 
       toast.success('User deleted successfully!');
       navigate('/dashboard/users');
     } catch (error) {
       console.error('Delete user error:', error);
-      toast.error(error.message || 'Failed to delete user');
+      const message = error instanceof Error ? error.message : 'Failed to delete user';
+      toast.error(message);
     } finally {
       setIsDeleting(false);
       setShowDeleteModal(false);
@@ -437,19 +407,14 @@ export const UserForm = () => {
     if (!id || !currentUser) return;
 
     try {
-      const updateData = {
-        status: 'active',
-        failed_attempts: null,
-      };
-
-      const { data, error } = await updateUser(id, updateData);
-      if (error) throw error;
+      await userService.update(id, { status: 'active', failedAttempts: 0 });
 
       toast.success("User account unlocked successfully!");
       await getUserDetails();
     } catch (err) {
       console.error("Error unlock user account:", err);
-      toast.error("Failed to unlock user account");
+      const message = err instanceof Error ? err.message : 'Failed to unlock user account';
+      toast.error(message);
     } finally {
       setIsDialogOpen(false);
     }
@@ -503,7 +468,7 @@ export const UserForm = () => {
           onClose={() => setShowDeleteModal(false)}
           onConfirm={handleDeleteUser}
           title="Are you sure?"
-          description={`This action cannot be undone. This will permanently delete the user account for ${currentUser?.first_name} ${currentUser?.last_name} and remove all associated data.`}
+          description={`This action cannot be undone. This will permanently delete the user account for ${currentUser?.firstName ?? ''} ${currentUser?.lastName ?? ''} and remove all associated data.`}
           isLoading={isDeleting}
         />
 
@@ -733,7 +698,7 @@ export const UserForm = () => {
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
-                      {['active', 'inactive'].map((status) => (
+                      {STATUS_OPTIONS.map((status) => (
                         <SelectItem key={status} value={status} className="flex items-center gap-2">
                           <div className="flex items-center gap-2">
                             <span className={`w-2 h-2 rounded-full ${getStatusDotColor(status)}`}></span>
