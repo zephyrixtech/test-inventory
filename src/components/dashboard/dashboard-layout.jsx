@@ -199,12 +199,12 @@ export const DashboardLayout = () => {
       icon: <Store className="mr-3 h-4 w-4 flex-shrink-0" />,
       roles: ['superadmin', 'store']
     },
-    { 
-      path: '/dashboard/purchaseOrderManagement', 
-      label: 'PurchaseOrder Management', 
-      icon: <FileText className="mr-3 h-4 w-4 flex-shrink-0" />,
-      roles: ['superadmin', 'purchaser', 'admin']
-    },
+    // { 
+    //   path: '/dashboard/purchaseOrderManagement', 
+    //   label: 'PurchaseOrder Management', 
+    //   icon: <FileText className="mr-3 h-4 w-4 flex-shrink-0" />,
+    //   roles: ['superadmin', 'purchaser', 'admin']
+    // },
     { 
       path: '/dashboard/inventoryManagement', 
       label: 'Inventory Management', 
