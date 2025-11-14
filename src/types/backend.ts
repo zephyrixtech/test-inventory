@@ -31,8 +31,16 @@ export interface Vendor {
 }
 
 export interface Category {
-  id: string;
+  id?: string;
+  _id?: string;
+  company?: string;
   name: string;
+  description?: string | null;
+  isActive: boolean;
+  subCategory?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  itemsCount?: number;
 }
 
 export interface Item {

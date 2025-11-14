@@ -78,7 +78,7 @@ export const Inventory = () => {
 
   const fetchCategories = useCallback(async () => {
     try {
-      const response = await categoryService.list();
+      const response = await categoryService.listCategories({ limit: 100, sortBy: 'name', sortOrder: 'asc' });
       setCategories(response.data ?? []);
     } catch (error) {
       console.error('Failed to load categories', error);
