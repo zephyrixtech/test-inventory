@@ -430,7 +430,7 @@ export const DashboardLayout = () => {
         <Outlet />
       </main>
 
-      <ChatWidget />
+      {/* <ChatWidget /> */}
     </div>
   );
 };

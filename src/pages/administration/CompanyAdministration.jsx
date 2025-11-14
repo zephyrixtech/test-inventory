@@ -25,8 +25,8 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useSelector } from 'react-redux';
-import administrationData from '@/data/companyAdministration.json';
 import { selectUser } from '@/redux/features/userSlice';
+import { companyService } from '@/services/companyService';
 
 const defaultCompanyTemplate = {
   id: '',
@@ -79,7 +79,7 @@ const createReportState = (seed = {}) => ({
 
 const CompanyAdministration = () => {
   const user = useSelector(selectUser);
-  const companyId = useMemo(() => user?.company_id || administrationData.company?.id || 'COMP-001', [user]);
+  const companyId = useMemo(() => user?.company_id || user?.companyId || null, [user]);
 
   const [expandedSections, setExpandedSections] = useState(() => new Set(['information']));
   const [expandedReportSections, setExpandedReportSections] = useState(() => new Set(['purchase_order']));
@@ -93,29 +93,78 @@ const CompanyAdministration = () => {
   const [isEmailAuthenticated, setIsEmailAuthenticated] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  const hydrateFromStaticData = useCallback(async () => {
+  const fetchCompanyData = useCallback(async () => {
+    if (!companyId) {
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 120));
+      const response = await companyService.getCompany();
+      const company = response.data;
 
-      const staticCompany = createCompanyState(administrationData.company || {}, companyId);
-      const staticReports = createReportState(administrationData.reportConfig || {});
-      const emailSettings = administrationData.systemSettings?.email || {};
+      if (company) {
+        // Map backend fields to frontend format
+        const mappedCompany = {
+          id: company._id || company.id || companyId,
+          name: company.name || '',
+          description: company.description || '',
+          address: company.address || '',
+          state: company.state || '',
+          postal_code: company.postalCode || company.postal_code || '',
+          country: company.country || '',
+          city: company.city || '',
+          bank_name: company.bankName || company.bank_name || '',
+          bank_account_number: company.bankAccountNumber || company.bank_account_number || '',
+          ifsc_code: company.ifscCode || company.ifsc_code || '',
+          iban_code: company.ibanCode || company.iban_code || '',
+          email: company.email || '',
+          currency: company.currency || '$',
+          phone: company.phone || '',
+          is_active: company.isActive !== undefined ? company.isActive : true,
+          created_at: company.createdAt || company.created_at || new Date().toISOString(),
+          modified_at: company.updatedAt || company.modified_at || new Date().toISOString(),
+          tax_percentage: company.taxPercentage || company.tax_percentage || null,
+        };
 
-      setCompanyInfo(staticCompany);
-      setReportConfig(staticReports);
-      setCompanyEmail(staticCompany.email ?? emailSettings.address ?? null);
-      setEmailRefreshToken(emailSettings.refreshToken || '');
-      setIsEmailAuthenticated(Boolean(emailSettings.authenticated));
-      setErrors({});
+        // Map report configurations
+        const mappedReports = {
+          purchaseOrderReport: {
+            payment_details: company.purchaseOrderReport?.paymentDetails || company.purchaseOrderReport?.payment_details || '',
+            remarks: company.purchaseOrderReport?.remarks || '',
+            report_footer: company.purchaseOrderReport?.reportFooter || company.purchaseOrderReport?.report_footer || '',
+          },
+          salesReport: {
+            payment_details: company.salesReport?.paymentDetails || company.salesReport?.payment_details || '',
+            remarks: company.salesReport?.remarks || '',
+            report_footer: company.salesReport?.reportFooter || company.salesReport?.report_footer || '',
+          },
+          stockReport: {
+            payment_details: company.stockReport?.paymentDetails || company.stockReport?.payment_details || '',
+            remarks: company.stockReport?.remarks || '',
+            report_footer: company.stockReport?.reportFooter || company.stockReport?.report_footer || '',
+          },
+        };
+
+        setCompanyInfo(mappedCompany);
+        setReportConfig(mappedReports);
+        setCompanyEmail(company.email || null);
+        setEmailRefreshToken(company.emailRefreshToken || '');
+        setIsEmailAuthenticated(Boolean(company.isEmailAuthenticated));
+        setErrors({});
+      }
+    } catch (error) {
+      console.error('Error fetching company data:', error);
+      toast.error('Failed to load company data');
     } finally {
       setIsLoading(false);
     }
   }, [companyId]);
 
   useEffect(() => {
-    hydrateFromStaticData();
-  }, [hydrateFromStaticData]);
+    fetchCompanyData();
+  }, [fetchCompanyData]);
 
   const toggleSection = (section) => {
     setExpandedSections((prev) => {
@@ -171,35 +220,84 @@ const CompanyAdministration = () => {
       return;
     }
 
+    if (!companyId) {
+      toast.error('Company context missing');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 250));
-
-      const updatedCompany = {
-        ...companyInfo,
-        modified_at: new Date().toISOString(),
+      // Map frontend format to backend format
+      const updatePayload = {
+        name: companyInfo.name,
+        email: companyInfo.email,
+        phone: companyInfo.phone || undefined,
+        description: companyInfo.description || undefined,
+        address: companyInfo.address || undefined,
+        city: companyInfo.city || undefined,
+        state: companyInfo.state || undefined,
+        country: companyInfo.country || undefined,
+        postalCode: companyInfo.postal_code || undefined,
+        bankName: companyInfo.bank_name || undefined,
+        bankAccountNumber: companyInfo.bank_account_number || undefined,
+        ifscCode: companyInfo.ifsc_code || undefined,
+        ibanCode: companyInfo.iban_code || undefined,
+        currency: companyInfo.currency,
+        taxPercentage: companyInfo.tax_percentage || undefined,
+        purchaseOrderReport: {
+          paymentDetails: reportConfig.purchaseOrderReport.payment_details || undefined,
+          remarks: reportConfig.purchaseOrderReport.remarks || undefined,
+          reportFooter: reportConfig.purchaseOrderReport.report_footer || undefined,
+        },
+        salesReport: {
+          paymentDetails: reportConfig.salesReport.payment_details || undefined,
+          remarks: reportConfig.salesReport.remarks || undefined,
+          reportFooter: reportConfig.salesReport.report_footer || undefined,
+        },
+        stockReport: {
+          paymentDetails: reportConfig.stockReport.payment_details || undefined,
+          remarks: reportConfig.stockReport.remarks || undefined,
+          reportFooter: reportConfig.stockReport.report_footer || undefined,
+        },
+        emailRefreshToken: emailRefreshToken || undefined,
+        isEmailAuthenticated: isEmailAuthenticated,
       };
 
-      setCompanyInfo(updatedCompany);
-      setCompanyEmail(updatedCompany.email ?? null);
-      setIsEmailAuthenticated(Boolean(emailRefreshToken));
+      const response = await companyService.updateCompany(updatePayload);
+      const updatedCompany = response.data;
 
-      if (user?.id) {
-        const persisted = {
-          ...JSON.parse(localStorage.getItem('userData') || '{}'),
-          company_data: {
-            ...(JSON.parse(localStorage.getItem('userData') || '{}').company_data || {}),
-            currency: updatedCompany.currency,
-            name: updatedCompany.name,
-          },
+      // Update local state with response
+      if (updatedCompany) {
+        const mappedCompany = {
+          ...companyInfo,
+          name: updatedCompany.name || companyInfo.name,
+          email: updatedCompany.email || companyInfo.email,
+          phone: updatedCompany.phone || companyInfo.phone,
+          currency: updatedCompany.currency || companyInfo.currency,
+          modified_at: updatedCompany.updatedAt || updatedCompany.modified_at || new Date().toISOString(),
         };
-        localStorage.setItem('userData', JSON.stringify(persisted));
-      }
 
-      toast.success('Company administration settings saved locally.');
+        setCompanyInfo(mappedCompany);
+        setCompanyEmail(updatedCompany.email || null);
+
+        // Update userData in localStorage if needed
+        if (user?.id) {
+          const persisted = {
+            ...JSON.parse(localStorage.getItem('userData') || '{}'),
+            company_data: {
+              ...(JSON.parse(localStorage.getItem('userData') || '{}').company_data || {}),
+              currency: updatedCompany.currency || companyInfo.currency,
+              name: updatedCompany.name || companyInfo.name,
+            },
+          };
+          localStorage.setItem('userData', JSON.stringify(persisted));
+        }
+
+        toast.success('Company administration settings saved successfully.');
+      }
     } catch (error) {
       console.error('Save error:', error);
-      toast.error('Unable to save changes right now.');
+      toast.error(error?.message || 'Unable to save changes right now.');
     } finally {
       setIsLoading(false);
     }
@@ -262,7 +360,7 @@ const CompanyAdministration = () => {
               <AlertCircle className="h-8 w-8 text-red-600" />
             </div>
             <h2 className="text-xl font-semibold text-gray-700 mb-2">No Company Context</h2>
-            <p className="text-gray-500">Add a company ID to your profile to manage administration settings.</p>
+            <p className="text-gray-500">Please ensure you are logged in with a valid company association to manage administration settings.</p>
           </div>
         </div>
       </div>
@@ -275,23 +373,23 @@ const CompanyAdministration = () => {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Company Administration</h1>
           <p className="text-gray-600">
-            Manage company details, system settings, and report customization. All data shown here uses static demo content.
+            Manage company details and report customization.
           </p>
         </div>
 
         <div className="mb-6 flex justify-between items-center">
           <div className="text-sm text-gray-500">
-            Last synced {new Date(companyInfo.modified_at || administrationData.company?.modified_at).toLocaleString()}
+            Last synced {new Date(companyInfo.modified_at || new Date().toISOString()).toLocaleString()}
           </div>
           <div className="flex gap-2">
             <Button
-              onClick={hydrateFromStaticData}
+              onClick={fetchCompanyData}
               variant="outline"
               size="sm"
               className="text-blue-600 border-blue-600 hover:bg-blue-50"
               disabled={isLoading}
             >
-              {isLoading ? 'Refreshing...' : 'Reset to Demo Data'}
+              {isLoading ? 'Refreshing...' : 'Refresh Data'}
             </Button>
           </div>
         </div>
@@ -402,6 +500,23 @@ const CompanyAdministration = () => {
                             </SelectContent>
                           </Select>
                         </div>
+                      </div>
+
+                      <div className="form-field">
+                        <Label htmlFor="tax_percentage" className="text-sm font-medium text-gray-700">
+                          Tax Percentage
+                        </Label>
+                        <Input
+                          id="tax_percentage"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={companyInfo.tax_percentage ?? ''}
+                          onChange={(event) => setCompanyInfo({ ...companyInfo, tax_percentage: event.target.value ? parseFloat(event.target.value) : null })}
+                          className="mt-1"
+                          placeholder="Enter tax percentage (0-100)"
+                        />
                       </div>
                     </div>
 
@@ -539,7 +654,8 @@ const CompanyAdministration = () => {
             )}
           </Card>
 
-          <Card className="shadow-sm border-gray-200">
+          {/* System Settings Section - Hidden but not removed */}
+          {/* <Card className="shadow-sm border-gray-200">
             <CardHeader
               className="cursor-pointer hover:bg-gray-50 transition-colors duration-200"
               onClick={() => toggleSection('settings')}
@@ -603,7 +719,7 @@ const CompanyAdministration = () => {
                 </div>
               </CardContent>
             )}
-          </Card>
+          </Card> */}
 
           <Card className="shadow-sm border-gray-200">
             <CardHeader
