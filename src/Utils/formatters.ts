@@ -5,7 +5,7 @@
  * @param {number} [decimals=2] - Number of decimal places
  * @returns {string}
  */
-export const formatCurrency = (amount, currency, decimals = 2) => {
+export const formatCurrency = (amount :number, currency: string = '$', decimals = 2) => {
   const userData = !currency ? JSON.parse(localStorage.getItem('userData') || '{}') : undefined;
   const currencySymbol =
     currency ??
@@ -29,7 +29,7 @@ export const formatCurrency = (amount, currency, decimals = 2) => {
  * @param {number} [decimals=0] - Number of decimal places
  * @returns {string}
  */
-export const formatNumber = (value, decimals = 0) => {
+export const formatNumber = (value  :number, decimals = 0) => {
   if (Number.isNaN(value)) {
     return '0';
   }
@@ -46,7 +46,7 @@ export const formatNumber = (value, decimals = 0) => {
  * @param {number} [decimals=1] - Number of decimal places
  * @returns {string}
  */
-export const formatPercentage = (value, decimals = 1) => {
+export const formatPercentage = (value: number, decimals = 1) => {
   if (Number.isNaN(value)) {
     return '0%';
   }
@@ -62,7 +62,7 @@ export const formatPercentage = (value, decimals = 1) => {
  * @param {number} bytes - The number of bytes
  * @returns {string}
  */
-export const formatFileSize = (bytes) => {
+export const formatFileSize = (bytes  :number) => {
   if (bytes === 0) return '0 Bytes';
 
   const k = 1024;
@@ -78,7 +78,7 @@ export const formatFileSize = (bytes) => {
  * @param {number} [decimals=1] - Number of decimal places
  * @returns {string}
  */
-export const formatCompactNumber = (value, decimals = 1) => {
+export const formatCompactNumber = (value :number, decimals = 1) => {
   if (Number.isNaN(value)) {
     return '0';
   }
@@ -94,8 +94,8 @@ export const formatCompactNumber = (value, decimals = 1) => {
   return `${shortValue}${suffixes[suffixNum]}`;
 };
 
-export const formatDate = (dateString) => {
-  if (!dateString) return 'N/A';
+export const formatDate = (dateString: string) => {
+  if (!dateString) return 'N/A';  
   try {
     const date = new Date(dateString);
     if (Number.isNaN(date.getTime())) return 'N/A';
