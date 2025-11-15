@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -37,7 +37,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
-  Store,
+  Store as StoreIcon,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -59,7 +59,7 @@ import {
 } from '@/components/ui/dialog';
 import toast from 'react-hot-toast';
 import { storeService } from '@/services/storeService';
-// import type { Store } from '@/services/storeService';
+import type { Store } from '@/services/storeService';
 import { useNavigate } from 'react-router-dom';
 
 export const StoreManagement = () => {
@@ -257,7 +257,7 @@ export const StoreManagement = () => {
 
   const getAllExpandable = (nodes: typeof storeTree): string[] => {
     let ids: string[] = [];
-    nodes.forEach((n) => {
+    nodes.forEach((n: typeof storeTree[0]) => {
       if (n.children.length > 0) {
         ids.push(n._id);
         ids = ids.concat(getAllExpandable(n.children as typeof storeTree));
@@ -267,7 +267,7 @@ export const StoreManagement = () => {
   };
 
   const countDescendants = (node: typeof storeTree[0]): number =>
-    node.children.length + node.children.reduce((acc, c) => acc + countDescendants(c), 0);
+    node.children.length + node.children.reduce((acc: number, c: typeof storeTree[0]) => acc + countDescendants(c), 0);
 
   const renderTreeNode = (node: typeof storeTree[0], level = 0) => {
     const hasChildren = node.children.length > 0;
@@ -295,7 +295,7 @@ export const StoreManagement = () => {
               {node.type === 'Central Store' ? (
                 <Building2 className="h-4 w-4 text-blue-600" />
               ) : (
-                <Store className="h-4 w-4 text-green-600" />
+                <StoreIcon className="h-4 w-4 text-green-600" />
               )}
             </div>
             <div className="flex-1">
@@ -324,7 +324,7 @@ export const StoreManagement = () => {
         </div>
         {hasChildren && isExpanded && (
           <div className="ml-4">
-            {node.children.map((child) => renderTreeNode(child as typeof storeTree[0], level + 1))}
+            {node.children.map((child: typeof storeTree[0]) => renderTreeNode(child, level + 1))}
           </div>
         )}
       </div>
@@ -421,7 +421,7 @@ export const StoreManagement = () => {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center space-x-3">
                   <div className="p-2.5 rounded-lg bg-blue-100 shadow-sm">
-                    <Store className="h-6 w-6 text-blue-600" />
+                    <StoreIcon className="h-6 w-6 text-blue-600" />
                   </div>
                   <div>
                     <CardTitle className="text-2xl font-bold">Store Management</CardTitle>
