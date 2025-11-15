@@ -23,15 +23,24 @@ import { ArrowLeft, CheckCircle, Loader2, Store, AlertCircle, Phone, Mail, MapPi
 import { useNavigate, useParams } from "react-router-dom";
 import { useEffect, useState, useRef, useCallback } from "react";
 import toast from "react-hot-toast";
-import { IUser, IStore } from "@/Utils/constants";
+import {  IStore } from "@/Utils/constants";
 import { storeService } from "@/services/storeService";
 import { userService } from "@/services/userService";
 
-interface ExtendedUser extends IUser {
-  role: {
-    id: string | null;
-    role_name: string;
-  };
+interface ExtendedUser {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  phone: string | null;
+  role: string;
+  status: string | null;
+  isActive: boolean | null;
+  companyId: string;
+  createdAt: string;
+  lastLoginAt: string | null;
+  full_name?: string;
+  [key: string]: any; // Allow additional properties
 }
 
 // Validation schema for the store form
@@ -146,11 +155,11 @@ const createStoreSchema = (centralStoreExists: boolean, isEditing: boolean) =>
 type StoreFormData = z.infer<ReturnType<typeof createStoreSchema>>;
 
 // Helper to safely extract ID from value
-const extractId = (value: unknown): string => {
-  if (typeof value === "string") return value;
-  if (value && typeof value === "object" && "id" in value) return (value as { id: string }).id;
-  return "";
-};
+// const extractId = (value: unknown): string => {
+//   if (typeof value === "string") return value;
+//   if (value && typeof value === "object" && "id" in value) return (value as { id: string }).id;
+//   return "";
+// };
 
 // Interface for user data stored in local storage
 interface UserData {
@@ -544,22 +553,17 @@ useEffect(() => {
 
       const mappedManagers: ExtendedUser[] = adminUsers.map((user) => ({
         id: user.id,
-        first_name: user.firstName,
-        last_name: user.lastName,
+        firstName: user.firstName,
+        lastName: user.lastName,
         email: user.email,
         phone: user.phone || '',
-        role_id: user.role || '',
+        role: user.role || '',
         status: user.status,
-        is_active: user.isActive,
-        company_id: companyId,
-        created_at: user.createdAt,
-        last_sign_in: user.lastLoginAt || '',
-        email_confirmed: true,
+        isActive: user.isActive,
+        companyId: companyId,
+        createdAt: user.createdAt,
+        lastLoginAt: user.lastLoginAt || '',
         full_name: `${user.firstName} ${user.lastName}`,
-        role: {
-          id: user.role || '',
-          role_name: user.role || 'No Role',
-        },
       }));
 
       setManagers(mappedManagers);
@@ -653,14 +657,10 @@ useEffect(() => {
 
     try {
       if (isEditing) {
-        // Update existing store using the storeService
         const response = await storeService.updateStore(id!, cleanedData);
-        // If we reach here, the request was successful
         toast.success("Store updated successfully", { position: "top-right" });
       } else {
-        // Create new store using the storeService
         const response = await storeService.createStore(cleanedData);
-        // If we reach here, the request was successful
         toast.success("Store created successfully", { position: "top-right" });
       }
       navigate("/dashboard/storeManagement");
@@ -1313,9 +1313,9 @@ useEffect(() => {
                                 : "border-gray-200 focus:border-blue-500 focus:ring-blue-200"
                                 } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 w-full ${field.value ? "border-blue-300" : ""
                                 }`}
-                              onChange={(e) =>
-                                field.onChange(e.target.value.toUpperCase())
-                              }
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                field.onChange(e.target.value.toUpperCase());
+                              }}
                             />
                           )}
                         />
@@ -1348,9 +1348,9 @@ useEffect(() => {
                                 : "border-gray-200 focus:border-blue-500 focus:ring-blue-200"
                                 } pl-3 pr-3 py-2 rounded-md shadow-sm focus:ring-4 transition-all duration-200 w-full ${field.value ? "border-blue-300" : ""
                                 }`}
-                              onChange={(e) =>
-                                field.onChange(e.target.value.toUpperCase())
-                              }
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                field.onChange(e.target.value.toUpperCase());
+                              }}
                             />
                           )}
                         />
@@ -1436,7 +1436,7 @@ useEffect(() => {
                                       key={manager.id}
                                       value={manager.id}
                                     >
-                                      {manager.full_name || `${manager.first_name || ''} ${manager.last_name || ''}`.trim() || manager.email}
+                                      {manager.full_name || `${manager.firstName || ''} ${manager.lastName || ''}`.trim() || manager.email}
                                     </SelectItem>
                                   ))
                                 )}
