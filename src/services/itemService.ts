@@ -41,9 +41,27 @@ export interface ItemResponse {
   meta?: any;
 }
 
+// Define item configuration response structure
+export interface ItemConfigResponse {
+  data: ItemConfigData | ItemConfigData[];
+  message?: string;
+  meta?: any;
+}
+
 // Define pagination response
 export interface PaginatedItemsResponse {
   data: ItemManagement[];
+  meta?: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    itemsPerPage: number;
+  };
+}
+
+// Define pagination response for item configurations
+export interface PaginatedItemConfigsResponse {
+  data: ItemConfigData[];
   meta?: {
     currentPage: number;
     totalPages: number;
@@ -142,7 +160,7 @@ export const getItemConfigurations = async (
     search?: string;
     controlType?: string;
   } = {}
-): Promise<any> => {
+): Promise<PaginatedItemConfigsResponse> => {
   try {
     const params = new URLSearchParams();
     params.append('page', page.toString());
@@ -151,8 +169,16 @@ export const getItemConfigurations = async (
     if (filters.search) params.append('search', filters.search);
     if (filters.controlType) params.append('controlType', filters.controlType);
     
-    const response = await apiClient.get(`/item-configurations?${params.toString()}`);
-    return response;
+    const response = await apiClient.get<ItemConfigResponse>(`/item-configurations?${params.toString()}`);
+    return {
+      data: Array.isArray(response.data) ? response.data : [response.data as ItemConfigData],
+      meta: response.meta || {
+        currentPage: page,
+        totalPages: 1,
+        totalItems: Array.isArray(response.data) ? response.data.length : 1,
+        itemsPerPage: limit
+      }
+    };
   } catch (error) {
     console.error('Error fetching item configurations:', error);
     throw error;
@@ -160,10 +186,10 @@ export const getItemConfigurations = async (
 };
 
 // Get a single item configuration by ID
-export const getItemConfigurationById = async (id: string): Promise<any> => {
+export const getItemConfigurationById = async (id: string): Promise<ItemConfigData> => {
   try {
-    const response = await apiClient.get(`/item-configurations/${id}`);
-    return response;
+    const response = await apiClient.get<ItemConfigResponse>(`/item-configurations/${id}`);
+    return response.data as ItemConfigData;
   } catch (error) {
     console.error(`Error fetching item configuration with id ${id}:`, error);
     throw error;
@@ -171,10 +197,10 @@ export const getItemConfigurationById = async (id: string): Promise<any> => {
 };
 
 // Create a new item configuration
-export const createItemConfiguration = async (configData: ItemConfigData): Promise<any> => {
+export const createItemConfiguration = async (configData: ItemConfigData): Promise<ItemConfigData> => {
   try {
-    const response = await apiClient.post('/item-configurations', configData);
-    return response;
+    const response = await apiClient.post<ItemConfigResponse>('/item-configurations', configData);
+    return response.data as ItemConfigData;
   } catch (error) {
     console.error('Error creating item configuration:', error);
     throw error;
@@ -182,10 +208,10 @@ export const createItemConfiguration = async (configData: ItemConfigData): Promi
 };
 
 // Create multiple item configurations
-export const createMultipleItemConfigurations = async (configData: ItemConfigData[]): Promise<any> => {
+export const createMultipleItemConfigurations = async (configData: ItemConfigData[]): Promise<ItemConfigData[]> => {
   try {
-    const response = await apiClient.post('/item-configurations/bulk', configData);
-    return response;
+    const response = await apiClient.post<ItemConfigResponse>('/item-configurations/bulk', configData);
+    return Array.isArray(response.data) ? response.data : [response.data as ItemConfigData];
   } catch (error) {
     console.error('Error creating multiple item configurations:', error);
     throw error;
@@ -193,10 +219,10 @@ export const createMultipleItemConfigurations = async (configData: ItemConfigDat
 };
 
 // Update an existing item configuration
-export const updateItemConfiguration = async (id: string, configData: Partial<ItemConfigData>): Promise<any> => {
+export const updateItemConfiguration = async (id: string, configData: Partial<ItemConfigData>): Promise<ItemConfigData> => {
   try {
-    const response = await apiClient.put(`/item-configurations/${id}`, configData);
-    return response;
+    const response = await apiClient.put<ItemConfigResponse>(`/item-configurations/${id}`, configData);
+    return response.data as ItemConfigData;
   } catch (error) {
     console.error(`Error updating item configuration with id ${id}:`, error);
     throw error;
@@ -217,7 +243,7 @@ export const deleteItemConfiguration = async (id: string): Promise<boolean> => {
 // Get categories for dropdown
 export const getCategories = async (): Promise<any[]> => {
   try {
-    const response = await apiClient.get('/categories');
+    const response = await apiClient.get<{data: any[]}>('/categories');
     return response.data;
   } catch (error) {
     console.error('Error fetching categories:', error);
@@ -228,7 +254,7 @@ export const getCategories = async (): Promise<any[]> => {
 // Get vendors for dropdown
 export const getVendors = async (): Promise<any[]> => {
   try {
-    const response = await apiClient.get('/vendors');
+    const response = await apiClient.get<{data: any[]}>('/vendors');
     return response.data;
   } catch (error) {
     console.error('Error fetching vendors:', error);

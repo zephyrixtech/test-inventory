@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import type { ApiResponse, ApiListResponse, Supplier } from '@/types/backend';
+import type {  ApiListResponse, Supplier } from '@/types/backend';
 
 export const supplierService = {
   async listSuppliers(params: {

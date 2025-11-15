@@ -1,5 +1,5 @@
 import { apiClient } from './apiClient';
-import type { ApiListResponse, ApiResponse } from '@/types/backend';
+import type {  ApiResponse } from '@/types/backend';
 
 export interface Store {
   _id: string;
