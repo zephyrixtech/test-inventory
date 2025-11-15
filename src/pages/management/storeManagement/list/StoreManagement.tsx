@@ -1,3 +1,4 @@
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -21,17 +22,32 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Plus, Edit, Trash2, Search, ChevronLeft, ChevronRight, Filter, Store, ArrowUpDown, ArrowUp, ArrowDown, Download, ChevronDown, ChevronRight as ChevronRightIcon, Building2, MapPin } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/Utils/types/supabaseClient';  // Import Supabase client
+} from '@/components/ui/tooltip';
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Store,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Download,
+  ChevronDown,
+  ChevronRight as ChevronRightIcon,
+  Building2,
+  MapPin,
+  Loader2,
+} from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -42,255 +58,228 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import toast from 'react-hot-toast';
-import { IUser, IStore } from '@/Utils/constants';
-import { exportSupabaseTableToCSV } from '@/Utils/csvExport';
+import { storeService } from '@/services/storeService';
+// import type { Store } from '@/services/storeService';
+import { useNavigate } from 'react-router-dom';
 
-interface ExtendedUser extends IUser {
-  role: {
-    id: string | null;
-    role_name: string;
-  };
-}
-
-export interface ExtendedStore extends IStore {
-  parent_store?: {
-    id: string;
-    name: string;
-    type: string;
-  } | null;
-  store_manager?: {
-    first_name: string;
-    last_name: string;
-  } | null;
-  is_parent: boolean;
-}
-
-interface TreeNode {
-  id: string;
-  code: string;
-  name: string;
-  type: string;
-  address: string;
-  store_manager?: {
-    first_name: string;
-    last_name: string;
-  } | null;
-  children: TreeNode[];
-}
-
-// Sort configuration
-type SortField = 'code' | 'name' | 'address' | 'type' | 'parent_store' | 'store_manager';
-type SortDirection = 'asc' | 'desc' | null;
-
-interface SortConfig {
-  field: SortField | null;
-  direction: SortDirection;
-}
-
-export const StoreManagement: React.FC = () => {
+export const StoreManagement = () => {
   const navigate = useNavigate();
+  const [stores, setStores] = useState<Store[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [stores, setStores] = useState<ExtendedStore[]>([]);
-  const [pagination, setPagination] = useState({
-    total: 0,
-    totalPages: 0,
-  });
   const [storeTypeFilter, setStoreTypeFilter] = useState('all');
   const [managerFilter, setManagerFilter] = useState('all');
   const [nameFilter, setNameFilter] = useState('all');
   const [parentStoreFilter, setParentStoreFilter] = useState('all');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [managers, setManagers] = useState<string[]>([]);
-  const [storeNames, setStoreNames] = useState<string[]>([]);
-  const [parentStores, setParentStores] = useState<ExtendedStore[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [storeToDelete, setStoreToDelete] = useState<IStore>();
-  const [purchaseOrderStoreIds, setPurchaseOrderStoreIds] = useState<string[]>([]);
-  
-  // Tree view state
-  const [storeTree, setStoreTree] = useState<TreeNode[]>([]);
+  const [storeToDelete, setStoreToDelete] = useState<Store | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
-  
-  const user = localStorage.getItem('userData');
-  const userData = user ? JSON.parse(user) : null;
-  const companyId = userData?.company_id || '';
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // Sort state
-  const [sortConfig, setSortConfig] = useState<SortConfig>({
+  const [sortConfig, setSortConfig] = useState<{
+    field: string | null;
+    direction: 'asc' | 'desc' | null;
+  }>({
     field: null,
     direction: null,
   });
 
   const storeTypes = ['all', 'Central Store', 'Branch Store'];
 
-  // Debounce search to avoid too many API calls
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
-
+  // Fetch stores from API
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
-  // Sort function
-  const handleSort = (field: SortField) => {
-    let direction: SortDirection = 'asc';
-
-    if (sortConfig.field === field) {
-      if (sortConfig.direction === 'asc') {
-        direction = 'desc';
-      } else if (sortConfig.direction === 'desc') {
-        direction = null;
-      } else {
-        direction = 'asc';
+    const fetchStores = async () => {
+      try {
+        setIsLoading(true);
+        const response = await storeService.listStores();
+        setStores(response.data || []);
+      } catch (error) {
+        console.error('Error fetching stores:', error);
+        toast.error('Failed to load stores');
+      } finally {
+        setIsLoading(false);
       }
-    }
-
-    setSortConfig({ field: direction ? field : null, direction });
-    setCurrentPage(1); // Reset to first page when sorting
-  };
-
-  // Get sort icon
-  const getSortIcon = (field: SortField) => {
-    if (sortConfig.field !== field) {
-      return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
-    }
-
-    if (sortConfig.direction === 'asc') {
-      return <ArrowUp className="h-4 w-4 text-blue-600" />;
-    } else if (sortConfig.direction === 'desc') {
-      return <ArrowDown className="h-4 w-4 text-blue-600" />;
-    }
-
-    return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
-  };
-
-  // Recursive function to build tree nodes
-  const buildNode = useCallback((store: ExtendedStore, childrenMap: { [key: string]: ExtendedStore[] }, expandedNodes: Set<string>): TreeNode => {
-    const kids = childrenMap[store.id] || [];
-    kids.sort((a, b) => a.name.localeCompare(b.name));
-
-    return {
-      id: store.id,
-      code: store.code || '',
-      name: store.name,
-      type: store.type,
-      address: store.address || '',
-      store_manager: store.store_manager,
-      children: kids.map((child) => buildNode(child, childrenMap, expandedNodes)),
     };
+
+    fetchStores();
   }, []);
 
-  // Build tree structure with multiple levels
-  const buildStoreTree = useCallback((allStores: ExtendedStore[]): TreeNode[] => {
-    const childrenMap: { [key: string]: ExtendedStore[] } = {};
+  // Get unique managers and store names for filters
+  const managers = useMemo(() => {
+    const managerSet = new Set<string>(['all']);
+    stores.forEach((store) => {
+      if (store.manager) {
+        managerSet.add(`${store.manager.firstName} ${store.manager.lastName}`);
+      }
+    });
+    return Array.from(managerSet);
+  }, [stores]);
 
-    allStores.forEach((store) => {
-      if (store.parent_id) {
-        if (!childrenMap[store.parent_id]) {
-          childrenMap[store.parent_id] = [];
+  const storeNames = useMemo(() => {
+    const nameSet = new Set<string>(['all']);
+    stores.forEach((store) => {
+      nameSet.add(store.name);
+    });
+    return Array.from(nameSet);
+  }, [stores]);
+
+  const parentStores = useMemo(() => {
+    const parentList = [{ id: 'all', name: 'All Parent Stores', type: '' }];
+    stores
+      .filter((store) => store.type === 'Central Store')
+      .forEach((store) => {
+        parentList.push({
+          id: store._id,
+          name: store.name,
+          type: store.type,
+        });
+      });
+    return parentList;
+  }, [stores]);
+
+  // === Filter, Sort, Paginate with useMemo ===
+  const filteredAndSortedStores = useMemo(() => {
+    let filtered = [...stores];
+
+    // Search
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (s) =>
+          s.name.toLowerCase().includes(query) ||
+          s.code.toLowerCase().includes(query)
+      );
+    }
+
+    // Filters
+    if (storeTypeFilter !== 'all') {
+      filtered = filtered.filter((s) => s.type === storeTypeFilter);
+    }
+    if (nameFilter !== 'all') {
+      filtered = filtered.filter((s) => s.name === nameFilter);
+    }
+    if (parentStoreFilter !== 'all') {
+      filtered = filtered.filter((s) => s.parent?._id === parentStoreFilter);
+    }
+    if (managerFilter !== 'all') {
+      filtered = filtered.filter(
+        (s) =>
+          s.manager &&
+          `${s.manager.firstName} ${s.manager.lastName}` === managerFilter
+      );
+    }
+
+    // Sorting
+    if (sortConfig.field && sortConfig.direction) {
+      filtered.sort((a, b) => {
+        let aVal: string | number, bVal: string | number;
+
+        switch (sortConfig.field) {
+          case 'code':
+            aVal = a.code;
+            bVal = b.code;
+            break;
+          case 'name':
+            aVal = a.name;
+            bVal = b.name;
+            break;
+          case 'address':
+            aVal = a.address || '';
+            bVal = b.address || '';
+            break;
+          case 'type':
+            aVal = a.type;
+            bVal = b.type;
+            break;
+          case 'parent_store':
+            aVal = a.parent?.name || '';
+            bVal = b.parent?.name || '';
+            break;
+          case 'store_manager':
+            aVal = a.manager ? `${a.manager.firstName} ${a.manager.lastName}` : '';
+            bVal = b.manager ? `${b.manager.firstName} ${b.manager.lastName}` : '';
+            break;
+          default:
+            aVal = a.name;
+            bVal = b.name;
         }
-        childrenMap[store.parent_id].push(store);
+
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [stores, searchQuery, storeTypeFilter, managerFilter, nameFilter, parentStoreFilter, sortConfig]);
+
+  const totalItems = filteredAndSortedStores.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const paginatedStores = filteredAndSortedStores.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // === Tree View ===
+  const buildTree = useMemo(() => {
+    const childrenMap: Record<string, Store[]> = {};
+    stores.forEach((store) => {
+      if (store.parent?._id) {
+        const parentId = store.parent._id;
+        if (!childrenMap[parentId]) childrenMap[parentId] = [];
+        childrenMap[parentId].push(store);
       }
     });
 
-    const roots = allStores
-      .filter((store) => !store.parent_id)
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((root) => buildNode(root, childrenMap, expandedNodes));
+    const roots = stores
+      .filter((s) => !s.parent)
+      .map((root) => ({
+        ...root,
+        children: (childrenMap[root._id] || []).map((child) => ({
+          ...child,
+          children: [],
+        })),
+      }));
 
     return roots;
-  }, [buildNode, expandedNodes]);
+  }, [stores]);
 
-  // Function to get all expandable node IDs
-  const getAllExpandableNodes = (nodes: TreeNode[]): string[] => {
+  const storeTree = buildTree;
+
+  const toggleNode = (id: string) => {
+    const newSet = new Set(expandedNodes);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setExpandedNodes(newSet);
+  };
+
+  const getAllExpandable = (nodes: typeof storeTree): string[] => {
     let ids: string[] = [];
-    nodes.forEach((node) => {
-      if (node.children.length > 0) {
-        ids.push(node.id);
-        ids = ids.concat(getAllExpandableNodes(node.children));
+    nodes.forEach((n) => {
+      if (n.children.length > 0) {
+        ids.push(n._id);
+        ids = ids.concat(getAllExpandable(n.children as typeof storeTree));
       }
     });
     return ids;
   };
 
-  // Fetch tree data
-  const fetchTreeData = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('store_mgmt')
-        .select(`
-          id,
-          code,
-          name,
-          type,
-          address,
-          parent_id,
-          store_manager_id,
-          user_mgmt:store_manager_id(first_name, last_name)
-        `)
-        .eq('is_active', true)
-        .eq('company_id', companyId)
-        .order('name', { ascending: true });
+  const countDescendants = (node: typeof storeTree[0]): number =>
+    node.children.length + node.children.reduce((acc, c) => acc + countDescendants(c), 0);
 
-      if (error) throw error;
-
-      // Fetch child stores to compute is_parent
-      const { data: childStoresData, error: childStoresError } = await supabase
-        .from('store_mgmt')
-        .select('parent_id')
-        .eq('company_id', companyId)
-        .eq('is_active', true)
-        .not('parent_id', 'is', null);
-
-      if (childStoresError) throw childStoresError;
-
-      const parentStoreIds = new Set(childStoresData.map((store: any) => store.parent_id));
-
-      const mappedStores: ExtendedStore[] = data.map((store: any) => ({
-        ...store,
-        store_manager: store.user_mgmt ? {
-          first_name: store.user_mgmt.first_name,
-          last_name: store.user_mgmt.last_name,
-        } : null,
-        is_parent: parentStoreIds.has(store.id),
-      })) as ExtendedStore[];
-
-      const tree = buildStoreTree(mappedStores);
-      setStoreTree(tree);
-    } catch (err: any) {
-      console.error('Error fetching tree data:', err);
-    }
-  }, [companyId, buildStoreTree]);
-
-  // Toggle node expansion
-  const toggleNode = (nodeId: string) => {
-    const newExpandedNodes = new Set(expandedNodes);
-    if (expandedNodes.has(nodeId)) {
-      newExpandedNodes.delete(nodeId);
-    } else {
-      newExpandedNodes.add(nodeId);
-    }
-    setExpandedNodes(newExpandedNodes);
-  };
-
-  // Render tree node
-  const renderTreeNode = (node: TreeNode, level: number = 0) => {
+  const renderTreeNode = (node: typeof storeTree[0], level = 0) => {
     const hasChildren = node.children.length > 0;
-    const isExpanded = expandedNodes.has(node.id);
-    
+    const isExpanded = expandedNodes.has(node._id);
+
     return (
-      <div key={node.id} className="select-none">
-        <div 
+      <div key={node._id} className="select-none">
+        <div
           className={`flex items-center py-2 px-3 hover:bg-gray-50 rounded-md cursor-pointer ${
             level > 0 ? 'ml-6 border-l-2 border-gray-200 pl-4' : ''
           }`}
-          onClick={() => hasChildren && toggleNode(node.id)}
+          onClick={() => hasChildren && toggleNode(node._id)}
         >
           <div className="flex items-center space-x-2 flex-1">
             {hasChildren ? (
@@ -302,575 +291,112 @@ export const StoreManagement: React.FC = () => {
             ) : (
               <div className="w-4 h-4" />
             )}
-            
             <div className={`p-1.5 rounded ${node.type === 'Central Store' ? 'bg-blue-100' : 'bg-green-100'}`}>
               {node.type === 'Central Store' ? (
-                <Building2 className={`h-4 w-4 ${node.type === 'Central Store' ? 'text-blue-600' : 'text-green-600'}`} />
+                <Building2 className="h-4 w-4 text-blue-600" />
               ) : (
-                <Store className={`h-4 w-4 ${node.type === 'Central Store' ? 'text-blue-600' : 'text-green-600'}`} />
+                <Store className="h-4 w-4 text-green-600" />
               )}
             </div>
-            
             <div className="flex-1">
               <div className="flex items-center space-x-2">
                 <span className="font-medium text-sm">{node.name}</span>
-                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                  {node.code}
-                </span>
-                <span className={`text-xs px-2 py-1 rounded ${
-                  node.type === 'Central Store' 
-                    ? 'bg-blue-100 text-blue-700' 
-                    : 'bg-green-100 text-green-700'
-                }`}>
+                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{node.code}</span>
+                <span className={`text-xs px-2 py-1 rounded ${node.type === 'Central Store' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
                   {node.type}
                 </span>
               </div>
               <div className="flex items-center space-x-4 mt-1 text-xs text-gray-600">
                 <div className="flex items-center space-x-1">
                   <MapPin className="h-3 w-3" />
-                  <span className="truncate max-w-[200px]" title={node.address}>
+                  <span className="truncate max-w-[200px]" title={node.address || ''}>
                     {node.address || 'No address'}
                   </span>
                 </div>
-                {node.store_manager && (
+                {node.manager && (
                   <span>
-                    Manager: {node.store_manager.first_name} {node.store_manager.last_name}
+                    Manager: {node.manager.firstName} {node.manager.lastName}
                   </span>
                 )}
               </div>
             </div>
           </div>
         </div>
-        
         {hasChildren && isExpanded && (
           <div className="ml-4">
-            {node.children.map(child => renderTreeNode(child, level + 1))}
+            {node.children.map((child) => renderTreeNode(child as typeof storeTree[0], level + 1))}
           </div>
         )}
       </div>
     );
   };
 
-  // Recursive function to count descendants
-  const countDescendants = (node: TreeNode): number => {
-    return node.children.length + node.children.reduce((acc, child) => acc + countDescendants(child), 0);
-  };
-
-  // Fetch managers, store names, and parent stores for filters
-  useEffect(() => {
-    const fetchFilterData = async () => {
-      try {
-        // Fetch all roles to find the "Store Manager" role ID
-        const { data: rolesData, error: rolesError } = await supabase
-          .from("role_master")
-          .select("id, name")
-          .eq('company_id', companyId);
-
-        if (rolesError) throw rolesError;
-
-        const storeManagerRole = rolesData.find((role: any) => role.name === "Store Manager");
-        if (!storeManagerRole) {
-          throw new Error("Store Manager role not found in role_master table");
-        }
-
-        // Create a role lookup map
-        const roleMap = rolesData.reduce((acc: any, role: any) => {
-          acc[role.id] = role.name;
-          return acc;
-        }, {});
-
-        // Fetch store managers
-        const { data: usersData, error: usersError } = await supabase
-          .from("user_mgmt")
-          .select(`
-            id,
-            first_name,
-            last_name,
-            email,
-            role_id,
-            status
-          `)
-          .eq('company_id', companyId)
-          .eq("is_active", true)
-          .eq("role_id", storeManagerRole.id)
-
-        if (usersError) throw usersError;
-
-        const mappedManagers: any[] = usersData.map((user: any) => ({
-          id: user.id,
-          email: user.email,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          role_id: user.role_id,
-          status: user.status,
-          is_active: user.is_active ?? true,
-          created_at: user.created_at ?? '',
-          modified_at: user.modified_at ?? '',
-          company_id: user.company_id ?? '',
-          last_login_date: user.last_login_date ?? '',
-          role: {
-            id: user.role_id ?? null,
-            role_name: roleMap[user.role_id] ?? "No Role",
-          },
-        }));
-
-        const managerNames = mappedManagers
-          .map((manager: ExtendedUser) => `${manager.first_name} ${manager.last_name}`)
-          .filter(Boolean);
-        setManagers(['all', ...managerNames]);
-
-        // Fetch all active stores for names and parent stores
-        const { data: storesData, error: storesError } = await supabase
-          .from("store_mgmt")
-          .select(`
-            id,
-            name,
-            type,
-            parent_id
-          `)
-          .eq('company_id', companyId)
-          .eq("is_active", true);
-
-        if (storesError) throw storesError;
-
-        const storeNames = storesData.map((store: any) => store.name);
-        setStoreNames(['all', ...storeNames]);
-
-        // Build unique parent stores array
-        const parentStoresArr: any[] = [];
-        storesData.forEach((store: any) => {
-          if (store.parent_id) {
-            const parentStore = storesData.find((s: any) => s.id === store.parent_id);
-            if (parentStore && !parentStoresArr.some((p) => p.id === parentStore.id)) {
-              parentStoresArr.push({
-                id: parentStore.id,
-                name: parentStore.name,
-                type: parentStore.type,
-              });
-            }
-          }
-        });
-        setParentStores([{ id: 'all', name: 'All Parent Stores', type: '' } as ExtendedStore, ...parentStoresArr]);
-      } catch (error: any) {
-        console.error('Error fetching filter data:', error.message);
-        setError('Failed to fetch filter data');
-      }
-    };
-
-    fetchFilterData();
-  }, [companyId]);
-
-  const fetchStores = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    // Get company ID from userData in local storage
-    const userDataString = localStorage.getItem('userData');
-    let companyId = null;
-    if (userDataString) {
-      try {
-        const userData = JSON.parse(userDataString);
-        companyId = userData.company_id;
-      } catch (e) {
-        setError('Invalid user data in local storage');
-        setLoading(false);
-        return;
-      }
+  // === Sorting ===
+  const handleSort = (field: string) => {
+    let direction: 'asc' | 'desc' | null = 'asc';
+    if (sortConfig.field === field) {
+      if (sortConfig.direction === 'asc') direction = 'desc';
+      else if (sortConfig.direction === 'desc') direction = null;
     }
-    if (!companyId) {
-      setStores([]);
-      setPagination({ total: 0, totalPages: 0 });
-      setLoading(false);
-      setError('Company ID not found in user data');
-      return;
-    }
-
-    try {
-      // Get total count first (without joins for accurate counting)
-      let countQuery = supabase
-        .from('store_mgmt')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_active', true)
-        .eq('company_id', companyId); // <-- Filter by company_id
-
-      // Apply search filter for count
-      if (debouncedSearchQuery.trim()) {
-        countQuery = countQuery.or(
-          `name.ilike.%${debouncedSearchQuery}%,code.ilike.%${debouncedSearchQuery}%`
-        );
-      }
-
-      // Apply store type filter for count
-      if (storeTypeFilter !== 'all') {
-        countQuery = countQuery.eq('type', storeTypeFilter);
-      }
-
-      // Apply store name filter for count
-      if (nameFilter !== 'all') {
-        countQuery = countQuery.eq('name', nameFilter);
-      }
-
-      // Apply parent store filter for count
-      if (parentStoreFilter !== 'all') {
-        countQuery = countQuery.eq('parent_id', parentStoreFilter);
-      }
-
-      // Apply manager filter for count
-      if (managerFilter !== 'all') {
-        // First get the manager ID
-        const { data: managersData, error: managersError } = await supabase
-          .from('user_mgmt')
-          .select('id, first_name, last_name')
-          .eq('company_id', companyId)
-          .eq('is_active', true);
-
-        if (managersError) throw managersError;
-
-        const managerId = managersData.find(
-          (manager: any) => `${manager.first_name} ${manager.last_name}` === managerFilter
-        )?.id;
-
-        if (managerId) {
-          countQuery = countQuery.eq('store_manager_id', managerId);
-        }
-      }
-
-      const { count, error: countError } = await countQuery;
-      if (countError) throw countError;
-
-      // Now fetch the actual data with sorting and pagination
-      let query = supabase
-        .from('store_mgmt')
-        .select(`
-          *,
-          parent_stores:parent_id(id, name, type),
-          user_mgmt:store_manager_id(first_name, last_name)
-        `)
-        .eq('is_active', true)
-        .eq('company_id', companyId); // <-- Filter by company_id
-
-      // Apply search filter
-      if (debouncedSearchQuery.trim()) {
-        query = query.or(
-          `name.ilike.%${debouncedSearchQuery}%,code.ilike.%${debouncedSearchQuery}%`
-        );
-      }
-
-      // Apply store type filter
-      if (storeTypeFilter !== 'all') {
-        query = query.eq('type', storeTypeFilter);
-      }
-
-      // Apply store name filter
-      if (nameFilter !== 'all') {
-        query = query.eq('name', nameFilter);
-      }
-
-      // Apply parent store filter
-      if (parentStoreFilter !== 'all') {
-        query = query.eq('parent_id', parentStoreFilter);
-      }
-
-      // Apply manager filter
-      if (managerFilter !== 'all') {
-        // First get the manager ID
-        const { data: managersData, error: managersError } = await supabase
-          .from('user_mgmt')
-          .select('id, first_name, last_name')
-          .eq('company_id', companyId)
-          .eq('is_active', true);
-
-        if (managersError) throw managersError;
-
-        const managerId = managersData.find(
-          (manager: any) => `${manager.first_name} ${manager.last_name}` === managerFilter
-        )?.id;
-
-        if (managerId) {
-          query = query.eq('store_manager_id', managerId);
-        }
-      }
-
-      // Apply sorting
-      if (sortConfig.field && sortConfig.direction) {
-        const ascending = sortConfig.direction === 'asc';
-
-        switch (sortConfig.field) {
-          case 'code':
-          case 'name':
-          case 'address':
-          case 'type':
-            query = query.order(sortConfig.field, { ascending });
-            break;
-          case 'parent_store':
-            // For parent store sorting, we need to use the referenced table
-            query = query.order('parent_stores.name', {
-              ascending,
-              foreignTable: 'parent_stores',
-              nullsFirst: !ascending
-            });
-            break;
-          case 'store_manager':
-            // For store manager sorting, we need to use the referenced table
-            query = query.order('user_mgmt.first_name', {
-              ascending,
-              foreignTable: 'user_mgmt',
-              nullsFirst: !ascending
-            });
-            break;
-          default:
-            query = query.order('name', { ascending: true });
-        }
-      } else {
-        // Default sorting by name if no sort is applied
-        query = query.order('name', { ascending: true });
-      }
-
-      // Apply pagination
-      const startIndex = (currentPage - 1) * itemsPerPage;
-      const endIndex = currentPage * itemsPerPage - 1;
-      query = query.range(startIndex, endIndex);
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      // Check which stores are parent stores (have children)
-      const { data: childStoresData, error: childStoresError } = await supabase
-        .from('store_mgmt')
-        .select('parent_id')
-        .eq('company_id', companyId)
-        .eq('is_active', true)
-        .not('parent_id', 'is', null);
-
-      if (childStoresError) throw childStoresError;
-
-      const parentStoreIds = new Set(childStoresData.map((store: any) => store.parent_id));
-
-      // Map the data to the Store interface
-      const mappedStores = data.map((store: any) => ({
-        ...store,
-        is_parent: parentStoreIds.has(store.id),
-        store_manager: store.user_mgmt ? {
-          first_name: store.user_mgmt.first_name,
-          last_name: store.user_mgmt.last_name,
-        } : null,
-        parent_store: store.parent_stores ? {
-          id: store.parent_stores.id,
-          name: store.parent_stores.name,
-          type: store.parent_stores.type,
-        } : null,
-      })) as ExtendedStore[];
-
-      setStores(mappedStores);
-      setPagination({
-        total: count || 0,
-        totalPages: Math.ceil((count || 0) / itemsPerPage),
-      });
-    } catch (err: any) {
-      console.error('Error fetching stores:', err);
-      setError(err.message || 'An error occurred while fetching stores');
-    } finally {
-      setLoading(false);
-    }
-  }, [currentPage, debouncedSearchQuery, storeTypeFilter, managerFilter, nameFilter, parentStoreFilter, itemsPerPage, sortConfig]);
-
-  useEffect(() => {
-    fetchStores();
-    fetchTreeData();
-  }, [fetchStores, fetchTreeData]);
-
-  useEffect(() => {
-    const fetchAllPOstoreIds = async () => {
-      if (!companyId) return;
-      try {
-        const { data, error } = await supabase
-          .rpc('get_store_ids_from_purchase_orders', { p_company_id: companyId });
-
-        if (error) throw error;
-
-        if (data) {
-          setPurchaseOrderStoreIds(data as string[]);
-        }
-      } catch (error) {
-        console.error("Error fetchAllPOstoreIds:", error);
-        // toast.error("Failed to fetch store ids.", { position: "top-right" });
-        setPurchaseOrderStoreIds([]);
-      }
-    }
-
-    fetchAllPOstoreIds();
-  }, [companyId])
-
-  const exportStoresToCSV = async () => {
-
-    await exportSupabaseTableToCSV<IStore>({
-      reportTitle: 'Stores Data',
-      headers: ['Store ID', 'Store Name', 'Address', 'Store Type', 'Parent Store', 'Store Manager'],
-      rowMapper: (store: any) => [
-        `"${store.code}"`,
-        `"${store.name}"`,
-        `"${store.address}"`,
-        `"${store.type}"`,
-        `"${store.parent_store?.name || ''}"`,
-        `"${store.store_manager ? `${store.store_manager.first_name} ${store.store_manager.last_name}` : ''}"`,
-      ],
-      supabaseClient: supabase,
-      fetcher: async () => {
-        let query = supabase
-          .from('store_mgmt')
-          .select(`
-            *,
-            parent_store:parent_id(name),
-            store_manager:user_mgmt!store_mgmt_store_manager_id_fkey(first_name, last_name)`)
-          .eq('is_active', true)
-          .eq('company_id', companyId);
-
-        if (debouncedSearchQuery) {
-          const sanitizedQuery = debouncedSearchQuery.replace(/[%_]/g, '');
-          const searchConditions = [
-            `name.ilike.%${sanitizedQuery}%`,
-            `code.ilike.%${sanitizedQuery}%`
-          ];
-          query = query.or(searchConditions.join(','));
-        }
-
-        // Apply store type filter
-        if (storeTypeFilter !== 'all') {
-          query = query.eq('type', storeTypeFilter);
-        }
-
-        // Apply store name filter
-        if (nameFilter !== 'all') {
-          query = query.eq('name', nameFilter);
-        }
-
-        // Apply parent store filter
-        if (parentStoreFilter !== 'all') {
-          query = query.eq('parent_id', parentStoreFilter);
-        }
-
-        // Apply manager filter for count
-        if (managerFilter !== 'all') {
-          // First get the manager ID
-          const { data: managersData, error: managersError } = await supabase
-            .from('user_mgmt')
-            .select('id, first_name, last_name')
-            .eq('company_id', companyId)
-            .eq('is_active', true);
-
-          if (managersError) throw managersError;
-
-          const managerId = managersData.find(
-            (manager: any) => `${manager.first_name} ${manager.last_name}` === managerFilter
-          )?.id;
-
-          if (managerId) {
-            query = query.eq('store_manager_id', managerId);
-          }
-        }
-
-        if (sortConfig.field && sortConfig.direction) {
-          const ascending = sortConfig.direction === 'asc';
-
-          switch (sortConfig.field) {
-            case 'code':
-            case 'name':
-            case 'address':
-            case 'type':
-              query = query.order(sortConfig.field, { ascending });
-              break;
-            case 'parent_store':
-              // For parent store sorting, we need to use the referenced table
-              query = query.order('parent_stores.name', {
-                ascending,
-                foreignTable: 'parent_stores',
-                nullsFirst: !ascending
-              });
-              break;
-            case 'store_manager':
-              // For store manager sorting, we need to use the referenced table
-              query = query.order('user_mgmt.first_name', {
-                ascending,
-                foreignTable: 'user_mgmt',
-                nullsFirst: !ascending
-              });
-              break;
-            default:
-              query = query.order('name', { ascending: true });
-          }
-        } else {
-          // Default sorting by name if no sort is applied
-          query = query.order('name', { ascending: true });
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-        return data as IStore[];
-      },
-      onError: (err: { message: any; }) => toast.error(`Failed to export stores: ${err.message}`),
-    });
-  };
-
-  // Reset to page 1 when filters or itemsPerPage change
-  useEffect(() => {
+    setSortConfig({ field: direction ? field : null, direction });
     setCurrentPage(1);
-  }, [debouncedSearchQuery, storeTypeFilter, managerFilter, nameFilter, parentStoreFilter, itemsPerPage]);
+  };
+
+  const getSortIcon = (field: string) => {
+    if (sortConfig.field !== field) return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
+    if (sortConfig.direction === 'asc') return <ArrowUp className="h-4 w-4 text-blue-600" />;
+    if (sortConfig.direction === 'desc') return <ArrowDown className="h-4 w-4 text-blue-600" />;
+    return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
+  };
+
+  // === Export CSV ===
+  const exportStoresToCSV = () => {
+    const headers = ['Store ID', 'Store Name', 'Address', 'Store Type', 'Parent Store', 'Store Manager'];
+    const rows = filteredAndSortedStores.map((store) => [
+      `"${store.code}"`,
+      `"${store.name}"`,
+      `"${store.address || ''}"`,
+      `"${store.type}"`,
+      `"${store.parent?.name || ''}"`,
+      `"${store.manager ? `${store.manager.firstName} ${store.manager.lastName}` : ''}"`,
+    ]);
+
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'stores.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+    toast.success('CSV exported successfully!');
+  };
+
+  // === Actions ===
+  const openDeleteDialog = (store: Store) => {
+    setStoreToDelete(store);
+    setIsDialogOpen(true);
+  };
 
   const handleDeleteStore = async () => {
     if (!storeToDelete) return;
 
     try {
-      // Soft delete - set is_active to false
-      const { error } = await supabase
-        .from('store_mgmt')
-        .update({ is_active: false })
-        .eq('id', storeToDelete.id);
-
-      if (error) throw error;
-
-      // Creating system log
-      const systemLogs = {
-        company_id: companyId,
-        transaction_date: new Date().toISOString(),
-        module: 'Store Management',
-        scope: 'Delete',
-        key: `${storeToDelete.code}`,
-        log: `Store ${storeToDelete.code} deleted.`,
-        action_by: userData.id,
-        created_at: new Date().toISOString(),
-      }
-
-      const { error: systemLogError } = await supabase
-        .from('system_log')
-        .insert(systemLogs);
-
-      if (systemLogError) throw systemLogError;
-
-      toast.success('Store deleted successfully', { position: 'top-right' });
-      fetchStores();
-      fetchTreeData();
+      setIsDeleting(true);
+      await storeService.deleteStore(storeToDelete._id);
+      toast.success(`Store ${storeToDelete.code} deleted successfully`);
       setIsDialogOpen(false);
-      setStoreToDelete(undefined);
-    } catch (err: any) {
-      console.error('Error deleting store:', err);
-      setError(err.message || 'An error occurred while deleting the store');
-      setIsDialogOpen(false);
-      setStoreToDelete(undefined);
+      setStoreToDelete(null);
+      // Refresh stores list
+      const response = await storeService.listStores();
+      setStores(response.data || []);
+    } catch (error: any) {
+      console.error('Error deleting store:', error);
+      const errorMessage = error?.message || 'Failed to delete store';
+      toast.error(errorMessage);
+    } finally {
+      setIsDeleting(false);
     }
-  };
-
-  const openDeleteDialog = (store: IStore) => {
-    setStoreToDelete(store);
-    setIsDialogOpen(true);
-  };
-
-  const handleAddStore = () => {
-    navigate('/dashboard/store/add');
-  };
-
-  const handleEditStore = (store: IStore) => {
-    navigate(`/dashboard/store/edit/${store.id}`);
   };
 
   const handleFilterReset = () => {
@@ -881,13 +407,15 @@ export const StoreManagement: React.FC = () => {
     setParentStoreFilter('all');
     setItemsPerPage(10);
     setCurrentPage(1);
-    setSortConfig({ field: null, direction: null }); // Reset sorting
+    setSortConfig({ field: null, direction: null });
   };
 
   return (
     <TooltipProvider>
       <div className="p-6">
         <div className="mx-auto max-w-7xl space-y-6">
+
+          {/* Main Table Card */}
           <Card className="min-h-[85vh] shadow-sm">
             <CardHeader className="rounded-t-lg border-b pb-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -896,9 +424,7 @@ export const StoreManagement: React.FC = () => {
                     <Store className="h-6 w-6 text-blue-600" />
                   </div>
                   <div>
-                    <CardTitle className="text-2xl font-bold flex items-center gap-2">
-                      Store Management
-                    </CardTitle>
+                    <CardTitle className="text-2xl font-bold">Store Management</CardTitle>
                     <CardDescription className="mt-1">
                       View your store details and storage capacity
                     </CardDescription>
@@ -909,14 +435,14 @@ export const StoreManagement: React.FC = () => {
                     variant="outline"
                     onClick={exportStoresToCSV}
                     className="transition-colors me-2"
-                    disabled={stores.length === 0}
+                    disabled={filteredAndSortedStores.length === 0}
                   >
                     <Download className="mr-2 h-4 w-4" />
-                    <span>Export CSV</span>
+                    Export CSV
                   </Button>
-                  <Button
-                    onClick={handleAddStore}
+                  <Button 
                     className="transition-colors"
+                    onClick={() => navigate('/dashboard/store/add')}
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Store
@@ -926,18 +452,7 @@ export const StoreManagement: React.FC = () => {
             </CardHeader>
 
             <CardContent className="pt-6">
-              {error && (
-                <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-md flex justify-between items-center">
-                  <span>{error}</span>
-                  <button
-                    onClick={() => setError(null)}
-                    className="text-red-700 hover:text-red-900"
-                  >
-                    ×
-                  </button>
-                </div>
-              )}
-
+              {/* Filters */}
               <div className="mb-6 space-y-4">
                 <div className="flex flex-col sm:flex-col items-center gap-4">
                   <div className="relative flex-1 w-full">
@@ -952,166 +467,114 @@ export const StoreManagement: React.FC = () => {
                       className="pl-10"
                     />
                   </div>
-                  <div className="flex items-center gap-2 w-full sm:w-full justify-between flex-wrap">
+                  <div className="flex items-center gap-2 w-full justify-between flex-wrap">
                     <Filter className="h-4 w-4 text-gray-500" />
-                    <Select value={storeTypeFilter} onValueChange={(value) => {
-                      setStoreTypeFilter(value);
-                      setCurrentPage(1);
-                    }}>
+                    <Select value={storeTypeFilter} onValueChange={(v) => { setStoreTypeFilter(v); setCurrentPage(1); }}>
                       <SelectTrigger className="w-full sm:w-[200px]">
                         <SelectValue placeholder="Filter by store type" />
                       </SelectTrigger>
                       <SelectContent>
-                        {storeTypes.map(strType => (
-                          <SelectItem key={strType} value={strType}>
-                            {strType === 'all' ? 'All Store Types' : strType}
+                        {storeTypes.map(t => (
+                          <SelectItem key={t} value={t}>
+                            {t === 'all' ? 'All Store Types' : t}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <Select value={managerFilter} onValueChange={(value) => {
-                      setManagerFilter(value);
-                      setCurrentPage(1);
-                    }}>
+                    <Select value={managerFilter} onValueChange={(v) => { setManagerFilter(v); setCurrentPage(1); }}>
                       <SelectTrigger className="w-full sm:w-[200px]">
                         <SelectValue placeholder="Filter by manager" />
                       </SelectTrigger>
                       <SelectContent>
-                        {managers.map(manager => (
-                          <SelectItem key={manager} value={manager}>
-                            {manager === 'all' ? 'All Managers' : manager}
+                        {managers.map(m => (
+                          <SelectItem key={m} value={m}>
+                            {m === 'all' ? 'All Managers' : m}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <Select value={nameFilter} onValueChange={(value) => {
-                      setNameFilter(value);
-                      setCurrentPage(1);
-                    }}>
+                    <Select value={nameFilter} onValueChange={(v) => { setNameFilter(v); setCurrentPage(1); }}>
                       <SelectTrigger className="w-full sm:w-[200px]">
                         <SelectValue placeholder="Filter by name" />
                       </SelectTrigger>
                       <SelectContent>
-                        {storeNames.map(name => (
-                          <SelectItem key={name} value={name}>
-                            {name === 'all' ? 'All Store Names' : name}
+                        {storeNames.map(n => (
+                          <SelectItem key={n} value={n}>
+                            {n === 'all' ? 'All Store Names' : n}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <Select value={parentStoreFilter} onValueChange={(value) => {
-                      setParentStoreFilter(value);
-                      setCurrentPage(1);
-                    }}>
+                    <Select value={parentStoreFilter} onValueChange={(v) => { setParentStoreFilter(v); setCurrentPage(1); }}>
                       <SelectTrigger className="w-full sm:w-[200px]">
                         <SelectValue placeholder="Filter by parent store" />
                       </SelectTrigger>
                       <SelectContent>
-                        {parentStores.map(store => (
-                          <SelectItem key={store.id} value={store.id}>
-                            {store.name}
+                        {parentStores.map(s => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button
-                      variant="outline"
-                      onClick={handleFilterReset}
-                      className="px-3 py-2 text-sm"
-                    >
+                    <Button variant="outline" onClick={handleFilterReset} className="px-3 py-2 text-sm">
                       Clear Filters
                     </Button>
                   </div>
                 </div>
               </div>
 
+              {/* Table */}
               <div className="rounded-lg overflow-hidden border shadow-sm">
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-gray-50 border-gray-200">
                       <TableHead className="font-semibold w-1/4">
-                        <p
-                          className="h-8 flex items-center text-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600 ps-2"
-                          onClick={() => handleSort('code')}
-                        >
-                          Store ID
-                          {getSortIcon('code')}
+                        <p className="h-8 flex items-center text-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600 ps-2" onClick={() => handleSort('code')}>
+                          Store ID {getSortIcon('code')}
                         </p>
                       </TableHead>
                       <TableHead className="font-semibold">
-                        <p
-                          className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600"
-                          onClick={() => handleSort('name')}
-                        >
-                          Store Name
-                          {getSortIcon('name')}
+                        <p className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600" onClick={() => handleSort('name')}>
+                          Store Name {getSortIcon('name')}
                         </p>
                       </TableHead>
                       <TableHead className="font-semibold">
-                        <p
-                          className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600"
-                          onClick={() => handleSort('address')}
-                        >
-                          Address
-                          {getSortIcon('address')}
+                        <p className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600" onClick={() => handleSort('address')}>
+                          Address {getSortIcon('address')}
                         </p>
                       </TableHead>
                       <TableHead className="font-semibold">
-                        <p
-                          className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600"
-                          onClick={() => handleSort('type')}
-                        >
-                          Store Type
-                          {getSortIcon('type')}
+                        <p className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600" onClick={() => handleSort('type')}>
+                          Store Type {getSortIcon('type')}
                         </p>
                       </TableHead>
                       <TableHead className="font-semibold">
-                        <p
-                          className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600"
-                          onClick={() => handleSort('parent_store')}
-                        >
-                          Parent Store
-                          {getSortIcon('parent_store')}
+                        <p className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600" onClick={() => handleSort('parent_store')}>
+                          Parent Store {getSortIcon('parent_store')}
                         </p>
                       </TableHead>
                       <TableHead className="font-semibold">
-                        <p
-                          className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600"
-                          onClick={() => handleSort('store_manager')}
-                        >
-                          Store Manager
-                          {getSortIcon('store_manager')}
+                        <p className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600" onClick={() => handleSort('store_manager')}>
+                          Store Manager {getSortIcon('store_manager')}
                         </p>
                       </TableHead>
                       <TableHead className="text-center font-semibold">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
-                      Array(itemsPerPage).fill(0).map((_, index) => (
-                        <TableRow key={index} className="hover:bg-gray-50">
-                          <TableCell className="py-3">
-                            <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
-                          </TableCell>
-                          <TableCell><div className="h-4 w-20 bg-gray-200 rounded animate-pulse"></div></TableCell>
-                          <TableCell><div className="h-4 w-40 bg-gray-200 rounded animate-pulse"></div></TableCell>
-                          <TableCell><div className="h-4 w-16 bg-gray-200 rounded animate-pulse mx-auto"></div></TableCell>
-                          <TableCell><div className="h-4 w-16 bg-gray-200 rounded animate-pulse mx-auto"></div></TableCell>
-                          <TableCell><div className="h-4 w-16 bg-gray-200 rounded animate-pulse mx-auto"></div></TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
-                              <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : stores.length === 0 ? (
-                      <TableRow className="hover:bg-gray-50">
-                        <TableCell
-                          colSpan={7}
-                          className="h-24 text-center text-muted-foreground"
-                        >
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                          <div className="flex flex-col items-center justify-center py-6">
+                            <Loader2 className="h-6 w-6 animate-spin text-blue-600 mb-2" />
+                            <p className="text-base font-medium">Loading stores...</p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : paginatedStores.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                           <div className="flex flex-col items-center justify-center py-6">
                             <p className="text-base font-medium">No stores found</p>
                             <p className="text-sm text-gray-500">Try adjusting your search or filter</p>
@@ -1119,32 +582,33 @@ export const StoreManagement: React.FC = () => {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      stores.map((store) => {
-                        const isStoreUsedInPO = purchaseOrderStoreIds.includes(store.id);
-                        const isDeleteDisabled = store.is_parent || isStoreUsedInPO;
+                      paginatedStores.map((store) => {
+                        // Check if store has children (is a parent)
+                        const hasChildren = stores.some(s => s.parent?._id === store._id);
+                        // For now, we'll disable delete if it has children or if it's a central store with branches
+                        // The backend will also check for inventory usage
+                        const isDeleteDisabled = hasChildren || store.type === 'Central Store';
 
                         return (
-                          <TableRow key={store.id} className="hover:bg-gray-50">
+                          <TableRow key={store._id} className="hover:bg-gray-50">
                             <TableCell className="font-medium py-3"><p className='ps-2'>{store.code}</p></TableCell>
                             <TableCell className="font-medium">{store.name}</TableCell>
-                            <TableCell className="min-w-[200px] whitespace-normal break-words" title={store.address ?? undefined}>
-                              {store.address}
+                            <TableCell className="min-w-[200px] whitespace-normal break-words" title={store.address || ''}>
+                              {store.address || 'No address'}
                             </TableCell>
                             <TableCell>{store.type}</TableCell>
-                            <TableCell>{store.parent_store?.name || 'None'}</TableCell>
+                            <TableCell>{store.parent?.name || 'None'}</TableCell>
                             <TableCell>
-                              {store.store_manager
-                                ? `${store.store_manager.first_name} ${store.store_manager.last_name}`
-                                : 'None'
-                              }
+                              {store.manager
+                                ? `${store.manager.firstName} ${store.manager.lastName}`
+                                : 'None'}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-center gap-2">
-                                <Button
-                                  variant="outline"
-                                  className='cursor-pointer'
+                                <Button 
+                                  variant="outline" 
                                   size="icon"
-                                  onClick={() => handleEditStore(store)}
+                                  onClick={() => navigate(`/dashboard/store/edit/${store._id}`)}
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -1152,20 +616,16 @@ export const StoreManagement: React.FC = () => {
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <div>
-                                        <Button
-                                          variant="outline"
-                                          size="icon"
-                                          className="text-destructive hover:bg-destructive/10 opacity-50 cursor-pointer"
-                                          disabled
-                                        >
+                                        <Button variant="outline" size="icon" className="text-destructive hover:bg-destructive/10 opacity-50" disabled>
                                           <Trash2 className="h-4 w-4" />
                                         </Button>
                                       </div>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                      <p>{store.is_parent
-                                        ? 'Deletion is restricted: This store is connected to a branch store and cannot be removed.'
-                                        : 'Cannot delete this store. Purchase orders are associated with this store.'}
+                                      <p>
+                                        {hasChildren
+                                          ? 'Deletion restricted: Connected to branch store.'
+                                          : 'Cannot delete: Store is in use.'}
                                       </p>
                                     </TooltipContent>
                                   </Tooltip>
@@ -1173,7 +633,7 @@ export const StoreManagement: React.FC = () => {
                                   <Button
                                     variant="outline"
                                     size="icon"
-                                    className="text-destructive cursor-pointer hover:bg-destructive/10"
+                                    className="text-destructive hover:bg-destructive/10"
                                     onClick={() => openDeleteDialog(store)}
                                   >
                                     <Trash2 className="h-4 w-4" />
@@ -1182,27 +642,20 @@ export const StoreManagement: React.FC = () => {
                               </div>
                             </TableCell>
                           </TableRow>
-                        )
+                        );
                       })
                     )}
                   </TableBody>
                 </Table>
               </div>
 
+              {/* Pagination */}
               <div className="flex flex-col sm:flex-row items-center justify-between px-2 py-6 gap-4">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm text-muted-foreground">
-                    Show
-                  </p>
-                  <Select
-                    value={itemsPerPage.toString()}
-                    onValueChange={(value) => {
-                      setItemsPerPage(Number(value));
-                      setCurrentPage(1);
-                    }}
-                  >
+                  <p className="text-sm text-muted-foreground">Show</p>
+                  <Select value={itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1); }}>
                     <SelectTrigger className="w-[70px]">
-                      <SelectValue placeholder={itemsPerPage.toString()} />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="5">5</SelectItem>
@@ -1211,36 +664,31 @@ export const StoreManagement: React.FC = () => {
                       <SelectItem value="50">50</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="text-sm text-muted-foreground">
-                    entries
-                  </p>
+                  <p className="text-sm text-muted-foreground">entries</p>
                 </div>
-
                 <div className="flex items-center gap-2">
                   <p className="text-sm text-muted-foreground hidden sm:block">
-                    Showing {pagination.total > 0 ? ((currentPage - 1) * itemsPerPage) + 1 : 0} to {Math.min(currentPage * itemsPerPage, pagination.total)} of {pagination.total} entries
+                    Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} entries
                   </p>
                   <div className="flex items-center space-x-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                      disabled={currentPage === 1 || loading}
+                      onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                      disabled={currentPage === 1}
                     >
-                      <ChevronLeft className="h-4 w-4 mr-1" />
-                      Previous
+                      <ChevronLeft className="h-4 w-4 mr-1" /> Previous
                     </Button>
                     <div className="flex items-center justify-center text-sm font-medium bg-gray-100 px-3 py-1 rounded">
-                      Page {currentPage} of {pagination.totalPages || 1}
+                      Page {currentPage} of {totalPages || 1}
                     </div>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, pagination.totalPages || 1))}
-                      disabled={currentPage === pagination.totalPages || loading || pagination.totalPages === 0}
+                      onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages || 1))}
+                      disabled={currentPage === totalPages}
                     >
-                      Next
-                      <ChevronRight className="h-4 w-4 ml-1" />
+                      Next <ChevronRight className="h-4 w-4 ml-1" />
                     </Button>
                   </div>
                 </div>
@@ -1248,7 +696,7 @@ export const StoreManagement: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Store Hierarchy Tree View */}
+          {/* Tree View Card */}
           <Card className="shadow-sm">
             <CardHeader className="rounded-t-lg border-b pb-6">
               <div className="flex items-center space-x-3">
@@ -1256,22 +704,19 @@ export const StoreManagement: React.FC = () => {
                   <Building2 className="h-6 w-6 text-blue-600" />
                 </div>
                 <div>
-                  <CardTitle className="text-xl font-bold">
-                    Store Hierarchy
-                  </CardTitle>
+                  <CardTitle className="text-xl font-bold">Store Hierarchy</CardTitle>
                   <CardDescription className="mt-1">
                     View the hierarchical structure of central stores and their branches
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
-            
             <CardContent className="pt-6">
               {storeTree.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12">
                   <Building2 className="h-12 w-12 text-gray-400 mb-4" />
                   <p className="text-lg font-medium text-gray-600">No store hierarchy available</p>
-                  <p className="text-sm text-gray-500">Add central stores and branch stores to see the hierarchy</p>
+                  <p className="text-sm text-gray-500">Add central and branch stores to see hierarchy</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -1281,29 +726,18 @@ export const StoreManagement: React.FC = () => {
                         Total Central Stores: <span className="font-semibold">{storeTree.length}</span>
                       </div>
                       <div className="text-sm text-gray-600">
-                        Total Branch Stores: <span className="font-semibold">{storeTree.reduce((acc, root) => acc + countDescendants(root), 0)}</span>
+                        Total Branch Stores: <span className="font-semibold">{storeTree.reduce((acc, r) => acc + countDescendants(r), 0)}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setExpandedNodes(new Set())}
-                        className="text-xs"
-                      >
+                      <Button variant="outline" size="sm" onClick={() => setExpandedNodes(new Set())}>
                         Collapse All
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setExpandedNodes(new Set(getAllExpandableNodes(storeTree)))}
-                        className="text-xs"
-                      >
+                      <Button variant="outline" size="sm" onClick={() => setExpandedNodes(new Set(getAllExpandable(storeTree)))}>
                         Expand All
                       </Button>
                     </div>
                   </div>
-                  
                   <div className="border rounded-lg bg-gray-50/50 p-4 max-h-[600px] overflow-y-auto">
                     <div className="space-y-1">
                       {storeTree.map(node => renderTreeNode(node))}
@@ -1314,7 +748,7 @@ export const StoreManagement: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Confirmation Dialog for Delete */}
+          {/* Delete Dialog */}
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
@@ -1325,21 +759,25 @@ export const StoreManagement: React.FC = () => {
               </DialogHeader>
               <DialogFooter className="flex justify-end gap-2">
                 <DialogClose asChild>
-                  <Button variant="outline" onClick={() => setStoreToDelete(undefined)}>
-                    No
-                  </Button>
+                  <Button variant="outline" onClick={() => setStoreToDelete(null)} disabled={isDeleting}>No</Button>
                 </DialogClose>
-                <Button
-                  variant="destructive"
-                  onClick={handleDeleteStore}
-                >
-                  Yes
+                <Button variant="destructive" onClick={handleDeleteStore} disabled={isDeleting}>
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    'Yes'
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
         </div>
       </div>
     </TooltipProvider>
   );
 };
+

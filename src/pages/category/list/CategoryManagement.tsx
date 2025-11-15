@@ -39,7 +39,6 @@ import {
   DialogTitle,
   DialogClose,
 } from '@/components/ui/dialog';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Plus,
   Edit,
@@ -54,25 +53,12 @@ import {
   ArrowDown,
   Download,
 } from 'lucide-react';
-import { supabase } from '@/Utils/types/supabaseClient';
-import { exportSupabaseTableToCSV } from '@/Utils/csvExport';
 import toast from 'react-hot-toast';
-import { IUser } from '@/Utils/constants';
 import { Badge } from '@/components/ui/badge';
+import { categoryService } from '@/services/categoryService';
+import type { Category } from '@/types/backend';
 
-// Category interface based on category_master table
-interface Category {
-  id: string;
-  name: string;
-  description: string | null;
-  is_active: boolean;
-  created_at: string;
-  company_id: string;
-  status: boolean | null;
-  items_count?: number; // Added for item count from item_mgmt
-}
-
-type SortField = 'name' | 'description' | 'is_active' | 'created_at';
+type SortField = 'name' | 'description' | 'subCategory' | 'status' | 'createdAt';
 type SortDirection = 'asc' | 'desc' | null;
 
 interface SortConfig {
@@ -88,21 +74,15 @@ export const CategoryManagement: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [loading, setLoading] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [categoryToDelete, setCategoryToDelete] = useState<Category>();
-  const [newCategory, setNewCategory] = useState({ name: '', description: '', is_active: true });
-  const [formErrors, setFormErrors] = useState<{ name?: string }>({});
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [sortConfig, setSortConfig] = useState<SortConfig>({
-    field: 'created_at',
+    field: 'createdAt',
     direction: 'desc',
   });
   const [isExporting, setIsExporting] = useState(false);
-  const user = localStorage.getItem("userData");
-  const userData: IUser | null = user ? JSON.parse(user) : null;
-  const companyId = userData?.company_id || null;
   
   // Updated status filters to work with status field
   const statusFilters = [
@@ -149,189 +129,68 @@ export const CategoryManagement: React.FC = () => {
     return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
   };
 
-  // Validate form inputs
-  const validateForm = (formData: { name: string }) => {
-    const errors: { name?: string } = {};
-    if (!formData.name.trim()) {
-      errors.name = 'Category name is required';
-    }
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  // Fetch categories and item counts
+  // Fetch categories from backend
   const fetchCategories = useCallback(async () => {
     setLoading(true);
 
     try {
-      // Fetch categories
-      let query = supabase
-        .from('category_master')
-        .select('*', { count: 'exact' })
-        .eq('company_id', companyId!)
-        .eq('is_active', true);
+      const response = await categoryService.listCategories({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: debouncedSearchQuery.trim() ? debouncedSearchQuery.trim() : undefined,
+        status: statusFilter,
+        sortBy: sortConfig.field ?? undefined,
+        sortOrder: sortConfig.direction ?? undefined,
+      });
 
-      // Apply search filter
-      if (debouncedSearchQuery.trim()) {
-        const searchLower = debouncedSearchQuery.toLowerCase();
-        query = query.or(`name.ilike.%${searchLower}%,description.ilike.%${searchLower}%`);
-      }
+      setCategories(response.data ?? []);
 
-      // Apply status filter - Updated to use status field (boolean) instead of is_active
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter === 'active');
-      }
-
-      // Apply sorting
-      if (sortConfig.field && sortConfig.direction) {
-        query = query.order(sortConfig.field, { ascending: sortConfig.direction === 'asc' });
-      }
-
-      // Apply pagination
-      const startIndex = (currentPage - 1) * itemsPerPage;
-      query = query.range(startIndex, startIndex + itemsPerPage - 1);
-
-      // Execute query
-      const { data: categoriesData, error: categoriesError, count } = await query;
-
-      if (categoriesError) {
-        throw new Error(categoriesError.message);
-      }
-
-      // Fetch item counts for each category
-      const categoryIds = categoriesData?.map(category => category.id) || [];
-      let itemCounts: { [key: string]: number } = {};
-      if (categoryIds.length > 0) {
-        const { data: itemData, error: itemError } = await supabase
-          .from('item_mgmt')
-          .select('category_id', { count: 'exact' })
-          .eq('company_id', companyId!)
-          .eq('is_active', true)
-          .in('category_id', categoryIds);
-
-        if (itemError) {
-          throw new Error(itemError.message);
+      if (response.meta) {
+        setTotalItems(response.meta.total);
+        setTotalPages(response.meta.totalPages);
+        if (response.meta.page !== currentPage) {
+          setCurrentPage(response.meta.page);
         }
-
-        // Aggregate item counts by category_id
-        itemCounts = (itemData || []).reduce((acc, item) => {
-          acc[item.category_id!] = (acc[item.category_id!] || 0) + 1;
-          return acc;
-        }, {} as { [key: string]: number });
+      } else {
+        setTotalItems(response.data?.length ?? 0);
+        setTotalPages(1);
       }
-
-      // Map categories with item counts
-      const categoriesWithItemCount = categoriesData?.map(category => ({
-        ...category,
-        items_count: itemCounts[category.id] || 0
-      })) || [];
-
-      setCategories(categoriesWithItemCount as Category[]);
-      setTotalItems(count || 0);
-      setTotalPages(Math.ceil((count || 0) / itemsPerPage));
-    } catch (err: any) {
-      toast.error(`Failed to fetch categories: ${err.message}`);
+    } catch (err) {
+      console.error('Failed to fetch categories:', err);
+      const message = err instanceof Error ? err.message : 'Failed to fetch categories';
+      toast.error(message);
+      setCategories([]);
+      setTotalItems(0);
+      setTotalPages(0);
     } finally {
       setLoading(false);
     }
-  }, [currentPage, debouncedSearchQuery, statusFilter, itemsPerPage, sortConfig]);
+  }, [currentPage, debouncedSearchQuery, itemsPerPage, sortConfig.field, sortConfig.direction, statusFilter]);
 
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
-
-  // Add new category
-  const handleAddCategorySubmit = async () => {
-    if (!validateForm(newCategory)) return;
-
-    try {
-      setLoading(true);
-      const { error } = await supabase
-        .from('category_master')
-        .insert({
-          name: newCategory.name.trim(),
-          description: newCategory.description.trim() || null,
-          is_active: newCategory.is_active,
-          company_id: companyId,
-        });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      setIsAddDialogOpen(false);
-      setNewCategory({ name: '', description: '', is_active: true });
-      setFormErrors({});
-      
-      toast.success('Category added successfully!');
-      
-      fetchCategories();
-    } catch (err: any) {
-      toast.error(`Failed to add category: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Delete category
   const handleDeleteCategory = async () => {
     if (!categoryToDelete) return;
 
+    const categoryId = categoryToDelete.id ?? categoryToDelete._id;
+    if (!categoryId) {
+      toast.error('Invalid category selected.');
+      return;
+    }
+
     try {
-      const { data: items, error: itemsError } = await supabase
-        .from('item_mgmt')
-        .select('id')
-        .eq('company_id', companyId!)
-        .eq('is_active', true)
-        .eq('category_id', categoryToDelete.id)
-        .limit(1);
-
-      if (itemsError) {
-        throw new Error(itemsError.message);
-      }
-
-      if (items && items.length > 0) {
-        toast.error('Cannot delete category. Items are associated with this category.');
-        setIsDeleteDialogOpen(false);
-        setCategoryToDelete(undefined);
-        return;
-      }
-
-      const { error: deleteError } = await supabase
-        .from('category_master')
-        .update({ is_active: false })
-        .eq('id', categoryToDelete.id);
-
-      if (deleteError) {
-        throw new Error(deleteError.message);
-      }
-
-      // Creating system log
-      const systemLogs = {
-        company_id: companyId,
-        transaction_date: new Date().toISOString(),
-        module: 'Category Master',
-        scope: 'Delete',
-        key: '',
-        log: `Category: ${categoryToDelete.name} deleted.`,
-        action_by: userData?.id,
-        created_at: new Date().toISOString(),
-      }
-
-      const { error: systemLogError } = await supabase
-        .from('system_log')
-        .insert(systemLogs);
-
-      if (systemLogError) throw systemLogError;
+      await categoryService.deleteCategory(categoryId);
       toast.success('Category deleted successfully!');
-      
-      setIsDeleteDialogOpen(false);
-      setCategoryToDelete(undefined);
       fetchCategories();
-    } catch (err: any) {
-      toast.error(`Failed to delete category: ${err.message}`);
+    } catch (err) {
+      console.error('Failed to delete category:', err);
+      const message = err instanceof Error ? err.message : 'Failed to delete category';
+      toast.error(message);
+    } finally {
       setIsDeleteDialogOpen(false);
-      setCategoryToDelete(undefined);
+      setCategoryToDelete(null);
     }
   };
 
@@ -341,101 +200,97 @@ export const CategoryManagement: React.FC = () => {
     setStatusFilter('all');
     setItemsPerPage(10);
     setCurrentPage(1);
-    setSortConfig({ field: 'created_at', direction: 'desc' });
-    setFormErrors({});
+    setSortConfig({ field: 'createdAt', direction: 'desc' });
     toast.success('Filters cleared successfully!');
   };
 
   // CSV export function using the utility
   const exportCategoriesCSV = async () => {
     setIsExporting(true);
-    
-    // Custom fetcher to get all categories with item counts
-    const fetchAllCategoriesForExport = async (): Promise<Category[]> => {
-      try {
-        // First, get all categories
-        const { data: categoriesData, error: categoriesError } = await supabase
-          .from('category_master')
-          .select('*')
-          .eq('company_id', companyId!)
-          .eq('is_active', true)
-          .order('created_at', { ascending: false });
 
-        if (categoriesError) {
-          throw new Error(categoriesError.message);
+    try {
+      const pageSize = 100;
+      let page = 1;
+      let hasNext = true;
+      const allCategories: Category[] = [];
+
+      while (hasNext) {
+        const response = await categoryService.listCategories({
+          page,
+          limit: pageSize,
+          sortBy: 'createdAt',
+          sortOrder: 'desc',
+        });
+
+        if (response.data) {
+          allCategories.push(...response.data);
         }
 
-        if (!categoriesData || categoriesData.length === 0) {
-          return [];
+        if (!response.meta || !response.meta.hasNextPage) {
+          hasNext = false;
+        } else {
+          page += 1;
         }
-
-        // Then get item counts for all categories
-        const categoryIds = categoriesData.map(category => category.id);
-        const { data: itemData, error: itemError } = await supabase
-          .from('item_mgmt')
-          .select('category_id')
-          .eq('company_id', companyId!)
-          .eq('is_active', true)
-          .in('category_id', categoryIds);
-
-        if (itemError) {
-          throw new Error(itemError.message);
-        }
-
-        // Aggregate item counts
-        const itemCounts = (itemData || []).reduce((acc, item) => {
-          acc[item.category_id!] = (acc[item.category_id!] || 0) + 1;
-          return acc;
-        }, {} as { [key: string]: number });
-
-        // Combine categories with item counts
-        return categoriesData.map(category => ({
-          ...category,
-          items_count: itemCounts[category.id] || 0
-        })) as Category[];
-      } catch (error) {
-        throw error;
       }
-    };
 
-    await exportSupabaseTableToCSV<Category>({
-      reportTitle: 'Category Management Report',
-      headers: [
-        'ID',
-        'Name',
-        'Description',
-        'Status',
-        'Items Count',
-        'Company ID',
-        'Created At'
-      ],
-      rowMapper: (category) => [
-        `"${category.id}"`,
-        `"${category.name}"`,
-        `"${category.description || 'N/A'}"`,
-        `"${category.status !== null ? (category.status ? 'Active' : 'Inactive') : 'N/A'}"`, // Updated to use status field (boolean)
-        category.items_count || 0,
-        `"${category.company_id}"`,
-        `"${new Date(category.created_at).toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'short',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-        })}"`
-      ],
-      supabaseClient: supabase,
-      fetcher: fetchAllCategoriesForExport,
-      onError: (error) => {
-        console.error('Export error:', error);
-        toast.error(`Failed to export categories: ${error.message}`);
-      },
-    });
+      if (allCategories.length === 0) {
+        toast.error('No categories available to export.');
+        return;
+      }
 
-    setIsExporting(false);
+      const headers = ['ID', 'Name', 'Sub Category', 'Description', 'Status', 'Items Count', 'Company ID', 'Created At'];
+      const rows = allCategories.map((category) => [
+        category.id ?? category._id ?? '',
+        category.name,
+        category.subCategory ?? 'N/A',
+        category.description ?? 'N/A',
+        category.isActive ? 'Active' : 'Inactive',
+        category.itemsCount ?? 0,
+        category.company ?? '',
+        category.createdAt
+          ? new Date(category.createdAt).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+          : 'N/A',
+      ]);
+
+      const escapeCell = (cell: string | number) => {
+        const cellValue = String(cell ?? '');
+        const escaped = cellValue.replace(/"/g, '""');
+        return `"${escaped}"`;
+      };
+
+      const csvContent = [headers, ...rows]
+        .map((row) => row.map(escapeCell).join(','))
+        .join('\n');
+
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Category_Management_Report_${new Date().toISOString()}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('Categories exported successfully!');
+    } catch (error) {
+      console.error('Export error:', error);
+      const message = error instanceof Error ? error.message : 'Failed to export categories';
+      toast.error(message);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
-  const formatDate = (dateString: string): string => {
+  const formatDate = (dateString?: string): string => {
+    if (!dateString) {
+      return 'N/A';
+    }
     try {
       return new Date(dateString).toLocaleDateString('en-US', {
         year: 'numeric',
@@ -447,22 +302,12 @@ export const CategoryManagement: React.FC = () => {
     }
   };
 
-  // Updated to use status field (boolean) for badge color
-  const getStatusBadgeColor = (status: boolean | null) => {
-    if (status === true) {
-      return 'bg-green-100 text-green-800 border-green-300';
-    } else if (status === false) {
-      return 'bg-red-100 text-red-800 border-red-300';
-    } else {
-      return 'bg-gray-100 text-gray-800 border-gray-300';
-    }
+  const getStatusBadgeColor = (isActive: boolean) => {
+    return isActive ? 'bg-green-100 text-green-800 border-green-300' : 'bg-red-100 text-red-800 border-red-300';
   };
 
-  // Helper function to get display text for status (boolean)
-  const getStatusDisplayText = (status: boolean | null) => {
-    if (status === true) return 'Active';
-    if (status === false) return 'Inactive';
-    return 'Unknown';
+  const getStatusDisplayText = (isActive: boolean) => {
+    return isActive ? 'Active' : 'Inactive';
   };
 
   return (
@@ -514,7 +359,7 @@ export const CategoryManagement: React.FC = () => {
                   <div className="relative flex-1 w-full sm:w-1/3">
                     <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                     <Input
-                      placeholder="Search by category name or description..."
+                      placeholder="Search by category name, sub-category or description..."
                       value={searchQuery}
                       onChange={(e) => {
                         setSearchQuery(e.target.value);
@@ -529,7 +374,7 @@ export const CategoryManagement: React.FC = () => {
                     <Select
                       value={statusFilter}
                       onValueChange={(value) => {
-                        setStatusFilter(value);
+                        setStatusFilter(value as 'all' | 'active' | 'inactive');
                         setCurrentPage(1);
                       }}
                       disabled={loading}
@@ -575,6 +420,16 @@ export const CategoryManagement: React.FC = () => {
                       <TableHead className="font-semibold">
                         <button
                           type="button"
+                          onClick={() => handleSort('subCategory')}
+                          className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600"
+                        >
+                          Sub Category
+                          {getSortIcon('subCategory')}
+                        </button>
+                      </TableHead>
+                      <TableHead className="font-semibold">
+                        <button
+                          type="button"
                           onClick={() => handleSort('description')}
                           className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-auto hover:text-blue-600"
                         >
@@ -585,21 +440,21 @@ export const CategoryManagement: React.FC = () => {
                       <TableHead className="font-semibold">
                         <button
                           type="button"
-                          onClick={() => handleSort('is_active')}
+                          onClick={() => handleSort('status')}
                           className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-full justify-start hover:text-blue-600"
                         >
                           Status
-                          {getSortIcon('is_active')}
+                          {getSortIcon('status')}
                         </button>
                       </TableHead>
                       <TableHead className="font-semibold">
                         <button
                           type="button"
-                          onClick={() => handleSort('created_at')}
+                          onClick={() => handleSort('createdAt')}
                           className="h-8 flex items-center gap-1 font-semibold cursor-pointer w-full justify-start hover:text-blue-600"
                         >
                           Created At
-                          {getSortIcon('created_at')}
+                          {getSortIcon('createdAt')}
                         </button>
                       </TableHead>
                       <TableHead className="text-center font-semibold">Actions</TableHead>
@@ -624,7 +479,7 @@ export const CategoryManagement: React.FC = () => {
                     ) : categories.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={5}
+                          colSpan={6}
                           className="h-24 text-center text-muted-foreground"
                         >
                           <div className="flex flex-col items-center justify-center py-6">
@@ -644,16 +499,29 @@ export const CategoryManagement: React.FC = () => {
                       </TableRow>
                     ) : (
                       categories.map((category) => (
-                        <TableRow key={category.id} className="hover:bg-gray-50">
+                        <TableRow key={category.id ?? category._id ?? category.name} className="hover:bg-gray-50">
                           <TableCell className="font-medium py-3">
                             <div className="ps-2">
                               <p className="font-medium">{category.name}</p>
                             </div>
                           </TableCell>
+                          <TableCell className="min-w-[150px] whitespace-normal break-words">
+                            <div className="max-w-xs">
+                              <p className="text-sm">
+                                {category.subCategory ? (
+                                  category.subCategory
+                                ) : (
+                                  <span className="text-gray-400 italic">None</span>
+                                )}
+                              </p>
+                            </div>
+                          </TableCell>
                           <TableCell className="min-w-[250px] whitespace-normal break-words">
                             <div className="max-w-xs">
                               <p className="text-sm">
-                                {category.description || (
+                                {category.description ? (
+                                  category.description
+                                ) : (
                                   <span className="text-gray-400 italic">No description provided</span>
                                 )}
                               </p>
@@ -662,13 +530,13 @@ export const CategoryManagement: React.FC = () => {
                           <TableCell className="text-left">
                             <Badge
                               variant="outline"
-                              className={`font-medium ${getStatusBadgeColor(category.status)}`}
+                              className={`font-medium ${getStatusBadgeColor(category.isActive ?? true)}`}
                             >
-                              {getStatusDisplayText(category.status)}
+                              {getStatusDisplayText(category.isActive ?? true)}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-left">
-                            <p className="text-sm">{formatDate(category.created_at)}</p>
+                            <p className="text-sm">{formatDate(category.createdAt)}</p>
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="flex justify-center gap-2">
@@ -687,7 +555,7 @@ export const CategoryManagement: React.FC = () => {
                                   Edit Category
                                 </TooltipContent>
                               </Tooltip>
-                              {category.items_count && category.items_count > 0 ? (
+                              {category.itemsCount && category.itemsCount > 0 ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <div>
@@ -791,65 +659,6 @@ export const CategoryManagement: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Add Category Dialog */}
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Add New Category</DialogTitle>
-                <DialogDescription>
-                  Enter the details for the new category.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Name (Required)</label>
-                  <Input
-                    value={newCategory.name}
-                    onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
-                    placeholder="Enter category name"
-                    disabled={loading}
-                  />
-                  {formErrors.name && (
-                    <p className="text-sm text-red-600 mt-1">{formErrors.name}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Description (Optional)</label>
-                  <Input
-                    value={newCategory.description}
-                    onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
-                    placeholder="Enter category description"
-                    disabled={loading}
-                  />
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    checked={newCategory.is_active}
-                    onCheckedChange={(checked) => setNewCategory({ ...newCategory, is_active: !!checked })}
-                    disabled={loading}
-                  />
-                  <label className="text-sm font-medium text-gray-700">Active Flag</label>
-                </div>
-              </div>
-              <DialogFooter className="flex justify-end gap-2">
-                <DialogClose asChild>
-                  <Button variant="outline" onClick={() => {
-                    setNewCategory({ name: '', description: '', is_active: true });
-                    setFormErrors({});
-                  }} disabled={loading}>
-                    Cancel
-                  </Button>
-                </DialogClose>
-                <Button
-                  onClick={handleAddCategorySubmit}
-                  disabled={loading}
-                >
-                  Add Category
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
           {/* Delete Confirmation Dialog */}
           <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
             <DialogContent className="sm:max-w-md">
@@ -861,7 +670,7 @@ export const CategoryManagement: React.FC = () => {
               </DialogHeader>
               <DialogFooter className="flex justify-end gap-2">
                 <DialogClose asChild>
-                  <Button variant="outline" onClick={() => setCategoryToDelete(undefined)} disabled={loading}>
+                  <Button variant="outline" onClick={() => setCategoryToDelete(null)} disabled={loading}>
                     Cancel
                   </Button>
                 </DialogClose>

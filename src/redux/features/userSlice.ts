@@ -1,20 +1,27 @@
-import { ICompany } from '@/Utils/constants';
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+
+interface CompanyData {
+  id?: string;
+  name?: string;
+  code?: string;
+  currency?: string;
+}
 
 interface UserData {
   id: string;
   email: string;
-  email_confirmed: boolean;
-  created_at: string;
-  last_sign_in: string;
-  first_name: string | null;
-  last_name: string | null;
-  role_id: string | null;
-  status: string | null;
-  is_active: boolean;
-  company_data: ICompany;
-  company_id: string | null;
-  full_name: string | null;
+  email_confirmed?: boolean;
+  created_at?: string;
+  last_sign_in?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  role_id?: string | null;
+  status?: string | null;
+  is_active?: boolean;
+  company_data?: CompanyData | null;
+  company_id?: string | null;
+  full_name?: string | null;
+  role_name?: string | null;
 }
 
 interface UserState {
@@ -59,7 +66,6 @@ const userSlice = createSlice({
 
 export const { setUser, setLoading, setError, clearUser } = userSlice.actions;
 
-// Selectors
 export const selectUser = (state: { user: UserState }) => state.user.userData;
 export const selectIsAuthenticated = (state: { user: UserState }) => state.user.isAuthenticated;
 export const selectIsLoading = (state: { user: UserState }) => state.user.isLoading;

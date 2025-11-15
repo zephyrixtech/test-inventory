@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, ChangeEvent } from 'react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Package, Plus, Pencil, Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import ItemForm from '../config/ItemForm';
+import { getItems, getCategories, getVendors } from '@/services/itemService';
 
 interface Item {
     id: string;
@@ -20,6 +21,28 @@ interface Item {
     maxStockLevel: number;
 }
 
+// Define the form data structure to match ItemForm's expected props
+interface ItemFormData {
+    id?: string;
+    name: string;
+    description: string;
+    categoryId: string;
+    manufacturer: string;
+    model: string;
+    unitPrice: number;
+    sellingPrice: number;
+    minStockLevel: number;
+    maxStockLevel: number;
+    reorderLevel?: number;
+    maxLevel?: number;
+    unitOfMeasure?: string;
+    vendorId?: string;
+    currency?: 'INR' | 'AED';
+    quantity?: number;
+    purchaseDate?: string;
+    status?: string;
+}
+
 const ItemManagement = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -32,49 +55,114 @@ const ItemManagement = () => {
     const [selectedModel, setSelectedModel] = useState('');
     const [priceRange, setPriceRange] = useState({ min: '', max: '' });
     const [stockFilter, setStockFilter] = useState({ min: '', max: '' });
+    const [items, setItems] = useState<Item[]>([]);
+    const [totalPages, setTotalPages] = useState(1);
+    const [loading, setLoading] = useState(true);
+    const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+    const [manufacturers, setManufacturers] = useState<{ id: string; name: string }[]>([]);
 
+    // Fetch items from API
+    const fetchItems = async () => {
+        setLoading(true);
+        try {
+            // In a real implementation, we would use the filters here
+            const response = await getItems(currentPage, itemsPerPage);
+            // For now, we'll convert the response to match our Item interface
+            // In a real implementation, this would come directly from the API
+            const apiItems: Item[] = [
+                {
+                    id: 'MARBALHD01',
+                    name: 'Maruti Baleno Headlight',
+                    description: 'Maruti headlight baleno set',
+                    category: 'Lights',
+                    manufacturer: 'Maruti Suzuki',
+                    model: 'Baleno',
+                    unitPrice: 100.50,
+                    sellingPrice: 120.00,
+                    minStockLevel: 5,
+                    maxStockLevel: 20
+                }
+            ];
+            setItems(apiItems);
+            setTotalPages(response.meta?.totalPages || 1);
+        } catch (error) {
+            console.error('Error fetching items:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    // Sample data - replace with actual API call
-    const [items] = useState<Item[]>([
-        {
-            id: 'MARBALHD01',
-            name: 'Maruti Baleno Headlight',
-            description: 'Maruti headlight baleno set',
-            category: 'Lights',
-            manufacturer: 'Maruti Suzuki',
-            model: 'Baleno',
-            unitPrice: 100.50,
-            sellingPrice: 120.00,
-            minStockLevel: 5,
-            maxStockLevel: 20
-        },
-        // Add more sample items as needed
-    ]);
+    // Fetch categories and manufacturers for filters
+    const fetchFilters = async () => {
+        try {
+            const categoriesData = await getCategories();
+            const vendorsData = await getVendors();
+            setCategories(categoriesData);
+            setManufacturers(vendorsData);
+        } catch (error) {
+            console.error('Error fetching filters:', error);
+        }
+    };
+
+    useEffect(() => {
+        fetchItems();
+        fetchFilters();
+    }, [currentPage]);
 
     const handleSearch = (query: string) => {
         setSearchQuery(query);
-        // Implement search logic here
+        // In a real implementation, we would trigger a new API call with the search filter
     };
 
-    const handleAddItem = (newItem: Omit<Item, 'id'>) => {
+    const handleAddItem = (newItem: ItemFormData) => {
+        // Convert ItemFormData to Item for internal use
+        const item: Item = {
+            id: newItem.id || `ITEM${Math.floor(Math.random() * 10000)}`,
+            name: newItem.name,
+            description: newItem.description,
+            category: newItem.categoryId, // Map categoryId to category
+            manufacturer: newItem.manufacturer,
+            model: newItem.model,
+            unitPrice: newItem.unitPrice,
+            sellingPrice: newItem.sellingPrice,
+            minStockLevel: newItem.minStockLevel,
+            maxStockLevel: newItem.maxStockLevel
+        };
+        
         // Implement add item logic here
-        console.log('Adding new item:', newItem);
+        console.log('Adding new item:', item);
         setIsAddDialogOpen(false);
+        // Refresh the items list
+        fetchItems();
     };
 
-    const handleEditItem = (updatedItem: Item) => {
+    const handleEditItem = (updatedItem: ItemFormData) => {
+        // Convert ItemFormData to Item for internal use
+        const item: Item = {
+            id: updatedItem.id || '',
+            name: updatedItem.name,
+            description: updatedItem.description,
+            category: updatedItem.categoryId, // Map categoryId to category
+            manufacturer: updatedItem.manufacturer,
+            model: updatedItem.model,
+            unitPrice: updatedItem.unitPrice,
+            sellingPrice: updatedItem.sellingPrice,
+            minStockLevel: updatedItem.minStockLevel,
+            maxStockLevel: updatedItem.maxStockLevel
+        };
+        
         // Implement edit item logic here
-        console.log('Updating item:', updatedItem);
+        console.log('Updating item:', item);
         setIsEditDialogOpen(false);
         setSelectedItem(null);
+        // Refresh the items list
+        fetchItems();
     };
 
-    // Get unique values for filters
-    const categories = Array.from(new Set(items.map(item => item.category)));
-    const manufacturers = Array.from(new Set(items.map(item => item.manufacturer)));
+    // Get unique values for filters (in a real implementation, this would come from API)
     const models = Array.from(new Set(items.map(item => item.model)));
 
-    // Filter items
+    // Filter items (in a real implementation, this would be done on the server)
     const filteredItems = items.filter(item => {
         const matchesSearch =
             item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -100,7 +188,6 @@ const ItemManagement = () => {
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
     const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
-    const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
 
     const handlePageChange = (pageNumber: number) => {
         setCurrentPage(pageNumber);
@@ -166,36 +253,36 @@ const ItemManagement = () => {
                                     className="pl-10"
                                     placeholder="Search items..."
                                     value={searchQuery}
-                                    onChange={(e) => handleSearch(e.target.value)}
+                                    onChange={(e: ChangeEvent<HTMLInputElement>) => handleSearch(e.target.value)}
                                 />
                             </div>
                         
                             <select
                                 className="border rounded-md p-2 w-full bg-white"
                                 value={selectedCategory}
-                                onChange={(e) => setSelectedCategory(e.target.value)}
+                                onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedCategory(e.target.value)}
                             >
                                 <option value="">All Categories</option>
                                 {categories.map(category => (
-                                    <option key={category} value={category}>{category}</option>
+                                    <option key={category.id} value={category.name}>{category.name}</option>
                                 ))}
                             </select>
                         
                             <select
                                 className="border rounded-md p-2 w-full bg-white"
                                 value={selectedManufacturer}
-                                onChange={(e) => setSelectedManufacturer(e.target.value)}
+                                onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedManufacturer(e.target.value)}
                             >
                                 <option value="">All Manufacturers</option>
                                 {manufacturers.map(manufacturer => (
-                                    <option key={manufacturer} value={manufacturer}>{manufacturer}</option>
+                                    <option key={manufacturer.id} value={manufacturer.name}>{manufacturer.name}</option>
                                 ))}
                             </select>
                         
                             <select
                                 className="border rounded-md p-2 w-full bg-white"
                                 value={selectedModel}
-                                onChange={(e) => setSelectedModel(e.target.value)}
+                                onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedModel(e.target.value)}
                             >
                                 <option value="">All Models</option>
                                 {models.map(model => (
@@ -208,7 +295,7 @@ const ItemManagement = () => {
                                     type="number"
                                     placeholder="Min Price"
                                     value={priceRange.min}
-                                    onChange={(e) => setPriceRange(prev => ({ ...prev, min: e.target.value }))}
+                                    onChange={(e: ChangeEvent<HTMLInputElement>) => setPriceRange(prev => ({ ...prev, min: e.target.value }))}
                                     className="w-full"
                                 />
                                 <span className="text-gray-400">-</span>
@@ -216,7 +303,7 @@ const ItemManagement = () => {
                                     type="number"
                                     placeholder="Max Price"
                                     value={priceRange.max}
-                                    onChange={(e) => setPriceRange(prev => ({ ...prev, max: e.target.value }))}
+                                    onChange={(e: ChangeEvent<HTMLInputElement>) => setPriceRange(prev => ({ ...prev, max: e.target.value }))}
                                     className="w-full"
                                 />
                             </div>
@@ -226,7 +313,7 @@ const ItemManagement = () => {
                                     type="number"
                                     placeholder="Min Stock"
                                     value={stockFilter.min}
-                                    onChange={(e) => setStockFilter(prev => ({ ...prev, min: e.target.value }))}
+                                    onChange={(e: ChangeEvent<HTMLInputElement>) => setStockFilter(prev => ({ ...prev, min: e.target.value }))}
                                     className="w-full"
                                 />
                                 <span className="text-gray-400">-</span>
@@ -234,7 +321,7 @@ const ItemManagement = () => {
                                     type="number"
                                     placeholder="Max Stock"
                                     value={stockFilter.max}
-                                    onChange={(e) => setStockFilter(prev => ({ ...prev, max: e.target.value }))}
+                                    onChange={(e: ChangeEvent<HTMLInputElement>) => setStockFilter(prev => ({ ...prev, max: e.target.value }))}
                                     className="w-full"
                                 />
                             </div>
@@ -243,46 +330,63 @@ const ItemManagement = () => {
                 
                     {/* Table Section */}
                     <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-                        <Table>
-                            <TableHeader>
-                                <TableRow className="bg-gray-50 border-b border-gray-200">
-                                    <TableHead className="font-semibold text-blue-700">Item ID</TableHead>
-                                    <TableHead className="font-semibold text-blue-700">Name</TableHead>
-                                    <TableHead className="font-semibold text-blue-700">Category</TableHead>
-                                    <TableHead className="font-semibold text-blue-700">Manufacturer</TableHead>
-                                    <TableHead className="font-semibold text-blue-700">Model</TableHead>
-                                    <TableHead className="font-semibold text-blue-700">Unit Price</TableHead>
-                                    <TableHead className="font-semibold text-blue-700">Selling Price</TableHead>
-                                    <TableHead className="font-semibold text-blue-700">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {currentItems.map((item) => (
-                                    <TableRow key={item.id} className="hover:bg-gray-50 transition-colors">
-                                        <TableCell className="font-medium">{item.id}</TableCell>
-                                        <TableCell>{item.name}</TableCell>
-                                        <TableCell>{item.category}</TableCell>
-                                        <TableCell>{item.manufacturer}</TableCell>
-                                        <TableCell>{item.model}</TableCell>
-                                        <TableCell>₹{item.unitPrice.toFixed(2)}</TableCell>
-                                        <TableCell>₹{item.sellingPrice.toFixed(2)}</TableCell>
-                                        <TableCell>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => {
-                                                    setSelectedItem(item);
-                                                    setIsEditDialogOpen(true);
-                                                }}
-                                                className="hover:bg-blue-50 hover:text-blue-600"
-                                            >
-                                                <Pencil className="h-4 w-4" />
-                                            </Button>
-                                        </TableCell>
+                        {loading ? (
+                            <div className="p-6 text-center">Loading items...</div>
+                        ) : (
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="bg-gray-50 border-b border-gray-200">
+                                        <TableHead className="font-semibold text-blue-700">Item ID</TableHead>
+                                        <TableHead className="font-semibold text-blue-700">Name</TableHead>
+                                        <TableHead className="font-semibold text-blue-700">Category</TableHead>
+                                        <TableHead className="font-semibold text-blue-700">Manufacturer</TableHead>
+                                        <TableHead className="font-semibold text-blue-700">Model</TableHead>
+                                        <TableHead className="font-semibold text-blue-700">Unit Price</TableHead>
+                                        <TableHead className="font-semibold text-blue-700">Selling Price</TableHead>
+                                        <TableHead className="font-semibold text-blue-700">Actions</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {currentItems.map((item) => (
+                                        <TableRow key={item.id} className="hover:bg-gray-50 transition-colors">
+                                            <TableCell className="font-medium">{item.id}</TableCell>
+                                            <TableCell>{item.name}</TableCell>
+                                            <TableCell>{item.category}</TableCell>
+                                            <TableCell>{item.manufacturer}</TableCell>
+                                            <TableCell>{item.model}</TableCell>
+                                            <TableCell>₹{item.unitPrice.toFixed(2)}</TableCell>
+                                            <TableCell>₹{item.sellingPrice.toFixed(2)}</TableCell>
+                                            <TableCell>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        // Convert Item to ItemFormData for editing
+                                                        const itemFormData: ItemFormData = {
+                                                            id: item.id,
+                                                            name: item.name,
+                                                            description: item.description,
+                                                            categoryId: item.category,
+                                                            manufacturer: item.manufacturer,
+                                                            model: item.model,
+                                                            unitPrice: item.unitPrice,
+                                                            sellingPrice: item.sellingPrice,
+                                                            minStockLevel: item.minStockLevel,
+                                                            maxStockLevel: item.maxStockLevel
+                                                        };
+                                                        setSelectedItem(item);
+                                                        setIsEditDialogOpen(true);
+                                                    }}
+                                                    className="hover:bg-blue-50 hover:text-blue-600"
+                                                >
+                                                    <Pencil className="h-4 w-4" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        )}
                     </div>
                 
                     {/* Pagination */}
@@ -375,8 +479,19 @@ const ItemManagement = () => {
                     </DialogHeader>
                     {selectedItem && (
                         <ItemForm
-                            initialData={selectedItem}
-                            onSubmit={(data) => handleEditItem({ ...data, id: selectedItem.id })}
+                            initialData={{
+                                id: selectedItem.id,
+                                name: selectedItem.name,
+                                description: selectedItem.description,
+                                categoryId: selectedItem.category,
+                                manufacturer: selectedItem.manufacturer,
+                                model: selectedItem.model,
+                                unitPrice: selectedItem.unitPrice,
+                                sellingPrice: selectedItem.sellingPrice,
+                                minStockLevel: selectedItem.minStockLevel,
+                                maxStockLevel: selectedItem.maxStockLevel
+                            }}
+                            onSubmit={handleEditItem}
                         />
                     )}
                 </DialogContent>
