@@ -23,8 +23,9 @@ import { ArrowLeft, CheckCircle, Loader2, Store, AlertCircle, Phone, Mail, MapPi
 import { useNavigate, useParams } from "react-router-dom";
 import { useEffect, useState, useRef, useCallback } from "react";
 import toast from "react-hot-toast";
-import { supabase } from "@/Utils/types/supabaseClient";
 import { IUser, IStore } from "@/Utils/constants";
+import { storeService } from "@/services/storeService";
+import { userService } from "@/services/userService";
 
 interface ExtendedUser extends IUser {
   role: {
@@ -267,23 +268,19 @@ export default function AddStoreForm() {
 
   // Check if a Central Store already exists
   const checkCentralStoreExists = useCallback(async () => {
-    if (isEditing || !companyId) return;
+    if (isEditing || !companyId) {
+      setInitialCheckComplete(true);
+      return;
+    }
 
     setIsCheckingCentralStore(true);
     try {
-      const { data, error } = await supabase
-        .from("store_mgmt")
-        .select("id")
-        .eq('company_id', companyId)
-        .eq("type", "Central Store")
-        .eq("is_active", true)
-        .limit(1);
-
-      if (error) {
-        console.error("Error checking central stores:", error);
-        throw error;
-      }
-
+      // Use storeService to check if a central store exists
+      const response = await storeService.listStores({ type: "Central Store" });
+      
+      // The apiClient will throw an error if the response is not ok, so we don't need to check for errors here
+      const data = response.data;
+      
       const exists = data && data.length > 0;
       setCentralStoreExists(exists);
       setInitialCheckComplete(true);
@@ -298,6 +295,7 @@ export default function AddStoreForm() {
       clearErrors("type");
     } catch (error) {
       console.error("Error checking central stores:", error);
+      // On error, assume central store exists to be safe
       setCentralStoreExists(true);
       setInitialCheckComplete(true);
       reset({
@@ -317,7 +315,7 @@ export default function AddStoreForm() {
   useEffect(() => {
     if (isEditing || !initialCheckComplete) return;
 
-    // If central store exists and user tries to select it, show error
+    // If central store exists and user tries to select it, show error and prevent selection
     if (centralStoreExists && watchedStoreType === "Central Store") {
       setError("type", {
         type: "manual",
@@ -354,22 +352,14 @@ export default function AddStoreForm() {
     setStoreIdValidationMessage('Checking availability...');
 
     try {
-      const { data, error } = await supabase
-        .from("store_mgmt")
-        .select("id, code")
-        .eq('company_id', companyId)
-        .eq("code", storeCode)
-        .eq("is_active", true)
-        .limit(1);
-
-      if (error) {
-        console.error("Error validating store ID:", error);
-        setStoreIdValidationStatus('idle');
-        setStoreIdValidationMessage('');
-        return;
-      }
-
-      const exists = data && data.length > 0;
+      // Use storeService to check if store code exists
+      const response = await storeService.listStores({ search: storeCode });
+      
+      // The apiClient will throw an error if the response is not ok, so we don't need to check for errors here
+      const data = response.data;
+      
+      // Check if any store in the response has the same code (case-sensitive comparison)
+      const exists = data && data.some(store => store.code === storeCode);
 
       if (exists) {
         setStoreIdValidationStatus('invalid');
@@ -432,43 +422,41 @@ export default function AddStoreForm() {
     setIsLoadingStore(true);
     const loadStore = async () => {
       try {
-        const { data, error } = await supabase
-          .from("store_mgmt")
-          .select("*")
-          .eq("id", id)
-          .single();
-
-        if (error) throw error;
-
-        setStore(data);
+        // Use storeService to fetch store data
+        const response = await storeService.getStore(id);
+        
+        // The apiClient will throw an error if the response is not ok, so we don't need to check for errors here
+        const data = response.data;
+        setStore(data as any as IStore); // Type assertion to match the existing IStore type
+        
         if (data) {
           const validTypes = ["Central Store", "Branch Store"] as const;
-          const storeType = validTypes.includes(data.type as any) ? data.type : "Branch Store";
+          const storeType = validTypes.includes(data.type) ? data.type : "Branch Store";
 
           reset({
             code: data.code || "",
             name: data.name || "",
             address: data.address || "",
-            city: data.city || "",
-            state: data.state || "",
-            postalCode: data.postal_code || "",
-            country: data.country || "",
+            city: "", // Not in backend model
+            state: "", // Not in backend model
+            postalCode: "", // Not in backend model
+            country: "", // Not in backend model
             phone: data.phone || "",
             email: data.email || "",
-            type: storeType as "Central Store" | "Branch Store",
-            parent_id: extractId(data.parent_id) || "",
-            bank_name: data.bank_name || "",
-            bank_account_number: data.bank_account_number || "",
-            bank_ifsc_code: data.bank_primary_code || "",
-            bank_iban_code: data.bank_secondary_code || "",
-            tax_code: data.tax_code || "",
-            store_manager_id: extractId(data.store_manager_id) || "",
-            direct_purchase_allowed: data.direct_purchase_allowed || false,
+            type: storeType,
+            parent_id: data.parent?._id ? String(data.parent._id) : "",
+            bank_name: "", // Not in backend model
+            bank_account_number: "", // Not in backend model
+            bank_ifsc_code: "", // Not in backend model
+            bank_iban_code: "", // Not in backend model
+            tax_code: "", // Not in backend model
+            store_manager_id: data.manager?._id ? String(data.manager._id) : "",
+            direct_purchase_allowed: false, // Not in backend model
           });
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error loading store:", error);
-        toast.error("Failed to load store data", { position: "top-right" });
+        toast.error(error.message || "Failed to load store data", { position: "top-right" });
       } finally {
         setIsLoadingStore(false);
       }
@@ -476,27 +464,31 @@ export default function AddStoreForm() {
     loadStore();
   }, [id, reset, companyId, checkCentralStoreExists, isEditing]);
 
-  // Load parent stores
+  // Load parent stores - show all stores (both Central and Branch) when creating Branch Store
   useEffect(() => {
     const loadParentStores = async () => {
       if (!companyId) return;
       try {
-        const { data, error } = await supabase
-          .from("store_mgmt")
-          .select("*")
-          .eq('company_id', companyId)
-          .eq('is_active', true)
-          .order("name");
-
-        if (error) throw error;
-
-        let filteredStores = data || [];
+        // Use storeService to fetch all stores (both Central and Branch)
+        const response = await storeService.listStores();
+        
+        // The apiClient will throw an error if the response is not ok, so we don't need to check for errors here
+        let filteredStores = response.data || [];
+        
         if (isEditing && store) {
+          // Filter out the current store from the parent store list
           filteredStores = filteredStores.filter(
-            (parent) => parent.id !== store.id
+            (parent) => parent._id !== (store as any)._id
           );
         }
-        setParentStores(filteredStores);
+        
+        // Convert to IStore type for compatibility with existing code
+        const convertedStores = filteredStores.map(store => ({
+          id: store._id,
+          ...store
+        })) as unknown as IStore[];
+        
+        setParentStores(convertedStores);
       } catch (error) {
         console.error("Error loading parent stores:", error);
       }
@@ -510,84 +502,61 @@ export default function AddStoreForm() {
     const loadManagers = async () => {
       if (!companyId) return;
       try {
-        // Step 1: Fetch all roles to find the "Store Manager" role ID
-        const { data: rolesData, error: rolesError } = await supabase
-          .from("role_master")
-          .select("id, name")
-          .eq('company_id', companyId);
+        // Fetch all active users - any active user can be a store manager
+        const response = await userService.list({
+          status: 'active',
+          limit: 1000, // Get all active users
+        });
 
-        if (rolesError) throw rolesError;
+        let usersData = response.data || [];
 
-        // Find the "Store Manager" role
-        const storeManagerRole = rolesData.find((role: any) => role.name === "Store Manager");
-        if (!storeManagerRole) {
-          throw new Error("Store Manager role not found in role_master table");
-        }
-
-        // Create a role lookup map
-        const roleMap = rolesData.reduce((acc: any, role: any) => {
-          acc[role.id] = role.name;
-          return acc;
-        }, {});
-
-        // Fetch active store managers
-        let query = supabase
-          .from("user_mgmt")
-          .select("*")
-          .eq("company_id", companyId)
-          .eq("role_id", storeManagerRole.id)
-          .eq("is_active", true);
-
-        query = query.eq("status", "active");
-
-        let { data: usersData, error: usersError } = await query;
-
-        if (usersError) throw usersError;
-
-        if (isEditing && id) {
-          // Fetch store’s manager
-          const { data: storeData, error: storeError } = await supabase
-            .from("store_mgmt")
-            .select("store_manager_id")
-            .eq("id", id)
-            .single();
-
-          if (storeError) throw storeError;
-
-          if (storeData?.store_manager_id) {
-            const alreadyIncluded = usersData?.some(
-              (u) => u.id === storeData.store_manager_id
+        // If editing, also include the current store's manager even if inactive
+        if (isEditing && id && store?.manager) {
+          // Manager can be an object with _id or a string ID
+          const currentManagerId = typeof store.manager === 'object' && store.manager !== null 
+            ? (store.manager as any)._id 
+            : store.manager;
+          
+          if (currentManagerId) {
+            const alreadyIncluded = usersData.some(
+              (u) => u.id === currentManagerId || u.id === String(currentManagerId)
             );
 
             if (!alreadyIncluded) {
-              // Fetch this specific manager even if inactive
-              const { data: managerUser, error: managerError } = await supabase
-                .from("user_mgmt")
-                .select("*")
-                .eq("id", storeData.store_manager_id)
-                .single();
-
-              if (managerError) throw managerError;
-              if (managerUser) {
-                usersData = [...(usersData || []), managerUser];
+              try {
+                // Fetch the current manager even if inactive
+                const managerResponse = await userService.get(String(currentManagerId));
+                if (managerResponse.data) {
+                  usersData = [...usersData, managerResponse.data];
+                }
+              } catch (error) {
+                // If we can't fetch the manager, continue without them
+                console.warn("Could not fetch current store manager:", error);
               }
             }
           }
         }
 
-        // Map users with role info
-        const mappedManagers: ExtendedUser[] = (usersData || []).map(
-          (user: IUser) => {
-            const roleId = user.role_id ?? "";
-            return {
-              ...user,
-              role: {
-                id: user.role_id,
-                role_name: roleMap[roleId] ?? "No Role",
-              },
-            };
-          }
-        );
+        // Map users to ExtendedUser format
+        const mappedManagers: ExtendedUser[] = usersData.map((user) => ({
+          id: user.id,
+          first_name: user.firstName,
+          last_name: user.lastName,
+          email: user.email,
+          phone: user.phone || "",
+          role_id: user.role || "",
+          status: user.status,
+          is_active: user.isActive,
+          company_id: companyId,
+          created_at: user.createdAt,
+          last_sign_in: user.lastLoginAt || "",
+          email_confirmed: true,
+          full_name: `${user.firstName} ${user.lastName}`,
+          role: {
+            id: user.role || "",
+            role_name: user.role || "No Role",
+          },
+        }));
 
         setManagers(mappedManagers);
       } catch (error) {
@@ -598,7 +567,7 @@ export default function AddStoreForm() {
     };
 
     loadManagers();
-  }, [companyId, id]);
+  }, [companyId, id, isEditing, store]);
 
   // Handle form submission
   const onSubmit = async (data: StoreFormData) => {
@@ -638,126 +607,76 @@ export default function AddStoreForm() {
     }
 
     // Map form fields to database columns and remove form-specific fields
-    const cleanedData = {
-      code: data.code,
-      name: data.name,
-      address: data.address,
-      city: data.city,
-      state: data.state,
-      postal_code: data.postalCode,
-      country: data.country,
-      phone: data.phone,
-      email: data.email,
+    const cleanedData: any = {
+      name: data.name?.trim(),
+      code: data.code?.trim(),
       type: data.type,
-      parent_id: data.type === "Central Store" ? null : data.parent_id,
-      bank_name: data.bank_name,
-      bank_account_number: data.bank_account_number,
-      bank_primary_code: data.bank_ifsc_code,
-      bank_secondary_code: data.bank_iban_code,
-      tax_code: data.tax_code,
-      store_manager_id: data.store_manager_id,
-      direct_purchase_allowed: data.direct_purchase_allowed,
-      company_id: companyId,
     };
 
-    // Remove undefined values
-    Object.keys(cleanedData).forEach((key) => {
-      if (cleanedData[key as keyof typeof cleanedData] === undefined) {
-        delete cleanedData[key as keyof typeof cleanedData];
-      }
-    });
+    // Handle parentId - only include if Branch Store and has a valid parent
+    if (data.type === "Branch Store" && data.parent_id && data.parent_id.trim() !== "") {
+      cleanedData.parentId = data.parent_id.trim();
+    }
+    // For Central Store, don't include parentId at all (backend expects it to be omitted)
+
+    // Handle managerId - only include if provided and not empty
+    if (data.store_manager_id && data.store_manager_id.trim() !== "") {
+      cleanedData.managerId = data.store_manager_id.trim();
+    }
+
+    // Optional fields - only include if they have values
+    if (data.phone && data.phone.trim() !== "") {
+      cleanedData.phone = data.phone.trim();
+    }
+    if (data.email && data.email.trim() !== "") {
+      cleanedData.email = data.email.trim().toLowerCase();
+    }
+    if (data.address && data.address.trim() !== "") {
+      cleanedData.address = data.address.trim();
+    }
 
     try {
       if (isEditing) {
-        const { error } = await supabase
-          .from("store_mgmt")
-          .update({
-            ...cleanedData,
-            modified_at: new Date().toISOString(),
-          })
-          .eq("id", id!);
-
-        if (error) throw error;
-
-        // Creating system log
-        const systemLogs = {
-          company_id: companyId,
-          transaction_date: new Date().toISOString(),
-          module: 'Store Management',
-          scope: 'Edit',
-          key: `${data.code}`,
-          log: `Store ${data.code} updated.`,
-          action_by: userId,
-          created_at: new Date().toISOString(),
-        }
-
-        const { error: systemLogError } = await supabase
-          .from('system_log')
-          .insert(systemLogs);
-
-        if (systemLogError) throw systemLogError;
-
+        // Update existing store using the storeService
+        const response = await storeService.updateStore(id!, cleanedData);
+        // If we reach here, the request was successful
         toast.success("Store updated successfully", { position: "top-right" });
       } else {
-        const { error } = await supabase.from("store_mgmt").insert([
-          {
-            ...cleanedData,
-            created_at: new Date().toISOString(),
-            modified_at: new Date().toISOString(),
-          },
-        ]);
-
-        if (error) throw error;
-
-        // Creating system log
-        const systemLogs = {
-          company_id: companyId,
-          transaction_date: new Date().toISOString(),
-          module: 'Store Management',
-          scope: 'Add',
-          key: `${data.code}`,
-          log: `Store ${data.code} created.`,
-          action_by: userId,
-          created_at: new Date().toISOString(),
-        }
-
-        const { error: systemLogError } = await supabase
-          .from('system_log')
-          .insert(systemLogs);
-
-        if (systemLogError) throw systemLogError;
+        // Create new store using the storeService
+        const response = await storeService.createStore(cleanedData);
+        // If we reach here, the request was successful
         toast.success("Store created successfully", { position: "top-right" });
       }
       navigate("/dashboard/storeManagement");
     } catch (error: any) {
-      console.error("Database error:", error);
-
+      console.error("API error:", error);
+      
       let errorMessage = `Failed to ${isEditing ? "update" : "create"} store`;
-
-      if (error.code === "23505") {
-        if (error.message.includes("code")) {
+      
+      // Handle specific error cases
+      if (error.message) {
+        if (error.message.toLowerCase().includes("code")) {
           errorMessage = "Store id already exists. Please use a different code.";
           setError("code", {
             type: "manual",
             message: "This store id is already in use",
           });
-        } else if (error.message.includes("email")) {
+        } else if (error.message.toLowerCase().includes("email")) {
           errorMessage = "Email address already exists. Please use a different email.";
           setError("email", {
             type: "manual",
             message: "This email is already in use",
           });
+        } else if (error.message.toLowerCase().includes("central store")) {
+          setError("type", {
+            type: "manual",
+            message: "Only one Central Store is allowed in the system.",
+          });
+          errorMessage = "Only one Central Store is allowed in the system.";
+          checkCentralStoreExists();
+        } else {
+          errorMessage = error.message;
         }
-      } else if (error.message.toLowerCase().includes("central store")) {
-        setError("type", {
-          type: "manual",
-          message: "Only one Central Store is allowed in the system.",
-        });
-        errorMessage = "Only one Central Store is allowed in the system.";
-        checkCentralStoreExists();
-      } else if (error.code === "PGRST204") {
-        errorMessage = "Database schema error: Invalid column name.";
-        setFormError("There was an issue with the database configuration. Please contact support.");
       }
 
       toast.error(errorMessage, { position: "top-right" });
@@ -1496,12 +1415,12 @@ export default function AddStoreForm() {
                                     No store managers found
                                   </p>
                                 ) : (
-                                  managers.map((manager: IUser) => (
+                                  managers.map((manager: ExtendedUser) => (
                                     <SelectItem
                                       key={manager.id}
                                       value={manager.id}
                                     >
-                                      {`${manager.first_name} ${manager.last_name}`}
+                                      {manager.full_name || `${manager.first_name || ''} ${manager.last_name || ''}`.trim() || manager.email}
                                     </SelectItem>
                                   ))
                                 )}

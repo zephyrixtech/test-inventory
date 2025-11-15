@@ -135,3 +135,30 @@ export interface Supplier {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface Store {
+  _id: string;
+  id?: string;
+  company: string;
+  name: string;
+  code: string;
+  type: 'Central Store' | 'Branch Store';
+  parent?: {
+    _id: string;
+    name: string;
+    code: string;
+    type: 'Central Store' | 'Branch Store';
+  } | null;
+  manager?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  } | null;
+  phone?: string;
+  email?: string;
+  address?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

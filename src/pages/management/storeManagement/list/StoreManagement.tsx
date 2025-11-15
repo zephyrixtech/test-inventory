@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -46,6 +46,7 @@ import {
   ChevronRight as ChevronRightIcon,
   Building2,
   MapPin,
+  Loader2,
 } from 'lucide-react';
 import {
   Dialog,
@@ -57,93 +58,14 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import toast from 'react-hot-toast';
-
-// === MOCK DATA ===
-const mockStores = [
-  {
-    id: '1',
-    code: 'CS001',
-    name: 'Central HQ Store',
-    type: 'Central Store',
-    address: '123 Main Street, New York, NY 10001',
-    parent_id: null,
-    store_manager: { first_name: 'John', last_name: 'Doe' },
-    is_parent: true,
-  },
-  {
-    id: '2',
-    code: 'BS001',
-    name: 'Manhattan Branch',
-    type: 'Branch Store',
-    address: '456 Park Ave, New York, NY 10022',
-    parent_id: '1',
-    store_manager: { first_name: 'Jane', last_name: 'Smith' },
-    is_parent: false,
-  },
-  {
-    id: '3',
-    code: 'BS002',
-    name: 'Brooklyn Outlet',
-    type: 'Branch Store',
-    address: '789 Fulton St, Brooklyn, NY 11217',
-    parent_id: '1',
-    store_manager: { first_name: 'Mike', last_name: 'Johnson' },
-    is_parent: false,
-  },
-  {
-    id: '4',
-    code: 'CS002',
-    name: 'West Coast Hub',
-    type: 'Central Store',
-    address: '101 Ocean Blvd, Los Angeles, CA 90001',
-    parent_id: null,
-    store_manager: { first_name: 'Sarah', last_name: 'Williams' },
-    is_parent: true,
-  },
-  {
-    id: '5',
-    code: 'BS003',
-    name: 'Venice Beach Store',
-    type: 'Branch Store',
-    address: '200 Boardwalk, Venice, CA 90291',
-    parent_id: '4',
-    store_manager: { first_name: 'Tom', last_name: 'Brown' },
-    is_parent: false,
-  },
-  {
-    id: '6',
-    code: 'BS004',
-    name: 'Santa Monica Pier',
-    type: 'Branch Store',
-    address: '300 Pier Ave, Santa Monica, CA 90401',
-    parent_id: '4',
-    store_manager: { first_name: 'Lisa', last_name: 'Davis' },
-    is_parent: false,
-  },
-  {
-    id: '7',
-    code: 'CS003',
-    name: 'Chicago Central',
-    type: 'Central Store',
-    address: '500 Michigan Ave, Chicago, IL 60601',
-    parent_id: null,
-    store_manager: { first_name: 'Robert', last_name: 'Miller' },
-    is_parent: false,
-  },
-];
-
-// Mock purchase order store IDs (used to disable delete)
-const mockPurchaseOrderStoreIds = ['1', '2', '4'];
-
-const mockManagers = ['all', 'John Doe', 'Jane Smith', 'Mike Johnson', 'Sarah Williams', 'Tom Brown', 'Lisa Davis', 'Robert Miller'];
-const mockStoreNames = ['all', 'Central HQ Store', 'Manhattan Branch', 'Brooklyn Outlet', 'West Coast Hub', 'Venice Beach Store', 'Santa Monica Pier', 'Chicago Central'];
-const mockParentStores = [
-  { id: 'all', name: 'All Parent Stores', type: '' },
-  { id: '1', name: 'Central HQ Store', type: 'Central Store' },
-  { id: '4', name: 'West Coast Hub', type: 'Central Store' },
-];
+import { storeService } from '@/services/storeService';
+// import type { Store } from '@/services/storeService';
+import { useNavigate } from 'react-router-dom';
 
 export const StoreManagement = () => {
+  const navigate = useNavigate();
+  const [stores, setStores] = useState<Store[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -152,19 +74,74 @@ export const StoreManagement = () => {
   const [nameFilter, setNameFilter] = useState('all');
   const [parentStoreFilter, setParentStoreFilter] = useState('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [storeToDelete, setStoreToDelete] = useState(null);
-  const [expandedNodes, setExpandedNodes] = useState(new Set());
+  const [storeToDelete, setStoreToDelete] = useState<Store | null>(null);
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const [sortConfig, setSortConfig] = useState({
+  const [sortConfig, setSortConfig] = useState<{
+    field: string | null;
+    direction: 'asc' | 'desc' | null;
+  }>({
     field: null,
     direction: null,
   });
 
   const storeTypes = ['all', 'Central Store', 'Branch Store'];
 
+  // Fetch stores from API
+  useEffect(() => {
+    const fetchStores = async () => {
+      try {
+        setIsLoading(true);
+        const response = await storeService.listStores();
+        setStores(response.data || []);
+      } catch (error) {
+        console.error('Error fetching stores:', error);
+        toast.error('Failed to load stores');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStores();
+  }, []);
+
+  // Get unique managers and store names for filters
+  const managers = useMemo(() => {
+    const managerSet = new Set<string>(['all']);
+    stores.forEach((store) => {
+      if (store.manager) {
+        managerSet.add(`${store.manager.firstName} ${store.manager.lastName}`);
+      }
+    });
+    return Array.from(managerSet);
+  }, [stores]);
+
+  const storeNames = useMemo(() => {
+    const nameSet = new Set<string>(['all']);
+    stores.forEach((store) => {
+      nameSet.add(store.name);
+    });
+    return Array.from(nameSet);
+  }, [stores]);
+
+  const parentStores = useMemo(() => {
+    const parentList = [{ id: 'all', name: 'All Parent Stores', type: '' }];
+    stores
+      .filter((store) => store.type === 'Central Store')
+      .forEach((store) => {
+        parentList.push({
+          id: store._id,
+          name: store.name,
+          type: store.type,
+        });
+      });
+    return parentList;
+  }, [stores]);
+
   // === Filter, Sort, Paginate with useMemo ===
   const filteredAndSortedStores = useMemo(() => {
-    let filtered = [...mockStores];
+    let filtered = [...stores];
 
     // Search
     if (searchQuery.trim()) {
@@ -184,44 +161,49 @@ export const StoreManagement = () => {
       filtered = filtered.filter((s) => s.name === nameFilter);
     }
     if (parentStoreFilter !== 'all') {
-      filtered = filtered.filter((s) => s.parent_id === parentStoreFilter);
+      filtered = filtered.filter((s) => s.parent?._id === parentStoreFilter);
     }
     if (managerFilter !== 'all') {
       filtered = filtered.filter(
         (s) =>
-          s.store_manager &&
-          `${s.store_manager.first_name} ${s.store_manager.last_name}` === managerFilter
+          s.manager &&
+          `${s.manager.firstName} ${s.manager.lastName}` === managerFilter
       );
     }
 
     // Sorting
     if (sortConfig.field && sortConfig.direction) {
       filtered.sort((a, b) => {
-        let aVal, bVal;
+        let aVal: string | number, bVal: string | number;
 
         switch (sortConfig.field) {
           case 'code':
-            aVal = a.code; bVal = b.code;
+            aVal = a.code;
+            bVal = b.code;
             break;
           case 'name':
-            aVal = a.name; bVal = b.name;
+            aVal = a.name;
+            bVal = b.name;
             break;
           case 'address':
-            aVal = a.address; bVal = b.address;
+            aVal = a.address || '';
+            bVal = b.address || '';
             break;
           case 'type':
-            aVal = a.type; bVal = b.type;
+            aVal = a.type;
+            bVal = b.type;
             break;
           case 'parent_store':
-            aVal = mockStores.find(s => s.id === a.parent_id)?.name || '';
-            bVal = mockStores.find(s => s.id === b.parent_id)?.name || '';
+            aVal = a.parent?.name || '';
+            bVal = b.parent?.name || '';
             break;
           case 'store_manager':
-            aVal = a.store_manager ? `${a.store_manager.first_name} ${a.store_manager.last_name}` : '';
-            bVal = b.store_manager ? `${b.store_manager.first_name} ${b.store_manager.last_name}` : '';
+            aVal = a.manager ? `${a.manager.firstName} ${a.manager.lastName}` : '';
+            bVal = b.manager ? `${b.manager.firstName} ${b.manager.lastName}` : '';
             break;
           default:
-            aVal = a.name; bVal = b.name;
+            aVal = a.name;
+            bVal = b.name;
         }
 
         if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
@@ -231,7 +213,7 @@ export const StoreManagement = () => {
     }
 
     return filtered;
-  }, [searchQuery, storeTypeFilter, managerFilter, nameFilter, parentStoreFilter, sortConfig]);
+  }, [stores, searchQuery, storeTypeFilter, managerFilter, nameFilter, parentStoreFilter, sortConfig]);
 
   const totalItems = filteredAndSortedStores.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -241,62 +223,63 @@ export const StoreManagement = () => {
   );
 
   // === Tree View ===
-  const buildTree = () => {
-    const childrenMap = {};
-    mockStores.forEach((store) => {
-      if (store.parent_id) {
-        if (!childrenMap[store.parent_id]) childrenMap[store.parent_id] = [];
-        childrenMap[store.parent_id].push(store);
+  const buildTree = useMemo(() => {
+    const childrenMap: Record<string, Store[]> = {};
+    stores.forEach((store) => {
+      if (store.parent?._id) {
+        const parentId = store.parent._id;
+        if (!childrenMap[parentId]) childrenMap[parentId] = [];
+        childrenMap[parentId].push(store);
       }
     });
 
-    const roots = mockStores
-      .filter((s) => !s.parent_id)
+    const roots = stores
+      .filter((s) => !s.parent)
       .map((root) => ({
         ...root,
-        children: (childrenMap[root.id] || []).map((child) => ({
+        children: (childrenMap[root._id] || []).map((child) => ({
           ...child,
           children: [],
         })),
       }));
 
     return roots;
-  };
+  }, [stores]);
 
-  const storeTree = buildTree();
+  const storeTree = buildTree;
 
-  const toggleNode = (id) => {
+  const toggleNode = (id: string) => {
     const newSet = new Set(expandedNodes);
     if (newSet.has(id)) newSet.delete(id);
     else newSet.add(id);
     setExpandedNodes(newSet);
   };
 
-  const getAllExpandable = (nodes) => {
-    let ids = [];
+  const getAllExpandable = (nodes: typeof storeTree): string[] => {
+    let ids: string[] = [];
     nodes.forEach((n) => {
       if (n.children.length > 0) {
-        ids.push(n.id);
-        ids = ids.concat(getAllExpandable(n.children));
+        ids.push(n._id);
+        ids = ids.concat(getAllExpandable(n.children as typeof storeTree));
       }
     });
     return ids;
   };
 
-  const countDescendants = (node) =>
+  const countDescendants = (node: typeof storeTree[0]): number =>
     node.children.length + node.children.reduce((acc, c) => acc + countDescendants(c), 0);
 
-  const renderTreeNode = (node, level = 0) => {
+  const renderTreeNode = (node: typeof storeTree[0], level = 0) => {
     const hasChildren = node.children.length > 0;
-    const isExpanded = expandedNodes.has(node.id);
+    const isExpanded = expandedNodes.has(node._id);
 
     return (
-      <div key={node.id} className="select-none">
+      <div key={node._id} className="select-none">
         <div
           className={`flex items-center py-2 px-3 hover:bg-gray-50 rounded-md cursor-pointer ${
             level > 0 ? 'ml-6 border-l-2 border-gray-200 pl-4' : ''
           }`}
-          onClick={() => hasChildren && toggleNode(node.id)}
+          onClick={() => hasChildren && toggleNode(node._id)}
         >
           <div className="flex items-center space-x-2 flex-1">
             {hasChildren ? (
@@ -326,13 +309,13 @@ export const StoreManagement = () => {
               <div className="flex items-center space-x-4 mt-1 text-xs text-gray-600">
                 <div className="flex items-center space-x-1">
                   <MapPin className="h-3 w-3" />
-                  <span className="truncate max-w-[200px]" title={node.address}>
-                    {node.address}
+                  <span className="truncate max-w-[200px]" title={node.address || ''}>
+                    {node.address || 'No address'}
                   </span>
                 </div>
-                {node.store_manager && (
+                {node.manager && (
                   <span>
-                    Manager: {node.store_manager.first_name} {node.store_manager.last_name}
+                    Manager: {node.manager.firstName} {node.manager.lastName}
                   </span>
                 )}
               </div>
@@ -341,7 +324,7 @@ export const StoreManagement = () => {
         </div>
         {hasChildren && isExpanded && (
           <div className="ml-4">
-            {node.children.map((child) => renderTreeNode(child, level + 1))}
+            {node.children.map((child) => renderTreeNode(child as typeof storeTree[0], level + 1))}
           </div>
         )}
       </div>
@@ -349,8 +332,8 @@ export const StoreManagement = () => {
   };
 
   // === Sorting ===
-  const handleSort = (field) => {
-    let direction = 'asc';
+  const handleSort = (field: string) => {
+    let direction: 'asc' | 'desc' | null = 'asc';
     if (sortConfig.field === field) {
       if (sortConfig.direction === 'asc') direction = 'desc';
       else if (sortConfig.direction === 'desc') direction = null;
@@ -359,7 +342,7 @@ export const StoreManagement = () => {
     setCurrentPage(1);
   };
 
-  const getSortIcon = (field) => {
+  const getSortIcon = (field: string) => {
     if (sortConfig.field !== field) return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
     if (sortConfig.direction === 'asc') return <ArrowUp className="h-4 w-4 text-blue-600" />;
     if (sortConfig.direction === 'desc') return <ArrowDown className="h-4 w-4 text-blue-600" />;
@@ -372,10 +355,10 @@ export const StoreManagement = () => {
     const rows = filteredAndSortedStores.map((store) => [
       `"${store.code}"`,
       `"${store.name}"`,
-      `"${store.address}"`,
+      `"${store.address || ''}"`,
       `"${store.type}"`,
-      `"${mockStores.find(s => s.id === store.parent_id)?.name || ''}"`,
-      `"${store.store_manager ? `${store.store_manager.first_name} ${store.store_manager.last_name}` : ''}"`,
+      `"${store.parent?.name || ''}"`,
+      `"${store.manager ? `${store.manager.firstName} ${store.manager.lastName}` : ''}"`,
     ]);
 
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -390,15 +373,30 @@ export const StoreManagement = () => {
   };
 
   // === Actions ===
-  const openDeleteDialog = (store) => {
+  const openDeleteDialog = (store: Store) => {
     setStoreToDelete(store);
     setIsDialogOpen(true);
   };
 
-  const handleDeleteStore = () => {
-    toast.success(`Store ${storeToDelete.code} deleted (mock)`);
-    setIsDialogOpen(false);
-    setStoreToDelete(null);
+  const handleDeleteStore = async () => {
+    if (!storeToDelete) return;
+
+    try {
+      setIsDeleting(true);
+      await storeService.deleteStore(storeToDelete._id);
+      toast.success(`Store ${storeToDelete.code} deleted successfully`);
+      setIsDialogOpen(false);
+      setStoreToDelete(null);
+      // Refresh stores list
+      const response = await storeService.listStores();
+      setStores(response.data || []);
+    } catch (error: any) {
+      console.error('Error deleting store:', error);
+      const errorMessage = error?.message || 'Failed to delete store';
+      toast.error(errorMessage);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleFilterReset = () => {
@@ -442,7 +440,10 @@ export const StoreManagement = () => {
                     <Download className="mr-2 h-4 w-4" />
                     Export CSV
                   </Button>
-                  <Button className="transition-colors">
+                  <Button 
+                    className="transition-colors"
+                    onClick={() => navigate('/dashboard/store/add')}
+                  >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Store
                   </Button>
@@ -485,7 +486,7 @@ export const StoreManagement = () => {
                         <SelectValue placeholder="Filter by manager" />
                       </SelectTrigger>
                       <SelectContent>
-                        {mockManagers.map(m => (
+                        {managers.map(m => (
                           <SelectItem key={m} value={m}>
                             {m === 'all' ? 'All Managers' : m}
                           </SelectItem>
@@ -497,7 +498,7 @@ export const StoreManagement = () => {
                         <SelectValue placeholder="Filter by name" />
                       </SelectTrigger>
                       <SelectContent>
-                        {mockStoreNames.map(n => (
+                        {storeNames.map(n => (
                           <SelectItem key={n} value={n}>
                             {n === 'all' ? 'All Store Names' : n}
                           </SelectItem>
@@ -509,7 +510,7 @@ export const StoreManagement = () => {
                         <SelectValue placeholder="Filter by parent store" />
                       </SelectTrigger>
                       <SelectContent>
-                        {mockParentStores.map(s => (
+                        {parentStores.map(s => (
                           <SelectItem key={s.id} value={s.id}>
                             {s.name}
                           </SelectItem>
@@ -562,7 +563,16 @@ export const StoreManagement = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedStores.length === 0 ? (
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                          <div className="flex flex-col items-center justify-center py-6">
+                            <Loader2 className="h-6 w-6 animate-spin text-blue-600 mb-2" />
+                            <p className="text-base font-medium">Loading stores...</p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : paginatedStores.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                           <div className="flex flex-col items-center justify-center py-6">
@@ -573,26 +583,33 @@ export const StoreManagement = () => {
                       </TableRow>
                     ) : (
                       paginatedStores.map((store) => {
-                        const isUsedInPO = mockPurchaseOrderStoreIds.includes(store.id);
-                        const isDeleteDisabled = store.is_parent || isUsedInPO;
+                        // Check if store has children (is a parent)
+                        const hasChildren = stores.some(s => s.parent?._id === store._id);
+                        // For now, we'll disable delete if it has children or if it's a central store with branches
+                        // The backend will also check for inventory usage
+                        const isDeleteDisabled = hasChildren || store.type === 'Central Store';
 
                         return (
-                          <TableRow key={store.id} className="hover:bg-gray-50">
+                          <TableRow key={store._id} className="hover:bg-gray-50">
                             <TableCell className="font-medium py-3"><p className='ps-2'>{store.code}</p></TableCell>
                             <TableCell className="font-medium">{store.name}</TableCell>
-                            <TableCell className="min-w-[200px] whitespace-normal break-words" title={store.address}>
-                              {store.address}
+                            <TableCell className="min-w-[200px] whitespace-normal break-words" title={store.address || ''}>
+                              {store.address || 'No address'}
                             </TableCell>
                             <TableCell>{store.type}</TableCell>
-                            <TableCell>{mockStores.find(s => s.id === store.parent_id)?.name || 'None'}</TableCell>
+                            <TableCell>{store.parent?.name || 'None'}</TableCell>
                             <TableCell>
-                              {store.store_manager
-                                ? `${store.store_manager.first_name} ${store.store_manager.last_name}`
+                              {store.manager
+                                ? `${store.manager.firstName} ${store.manager.lastName}`
                                 : 'None'}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-center gap-2">
-                                <Button variant="outline" size="icon">
+                                <Button 
+                                  variant="outline" 
+                                  size="icon"
+                                  onClick={() => navigate(`/dashboard/store/edit/${store._id}`)}
+                                >
                                   <Edit className="h-4 w-4" />
                                 </Button>
                                 {isDeleteDisabled ? (
@@ -606,9 +623,9 @@ export const StoreManagement = () => {
                                     </TooltipTrigger>
                                     <TooltipContent>
                                       <p>
-                                        {store.is_parent
+                                        {hasChildren
                                           ? 'Deletion restricted: Connected to branch store.'
-                                          : 'Cannot delete: Used in purchase orders.'}
+                                          : 'Cannot delete: Store is in use.'}
                                       </p>
                                     </TooltipContent>
                                   </Tooltip>
@@ -742,9 +759,18 @@ export const StoreManagement = () => {
               </DialogHeader>
               <DialogFooter className="flex justify-end gap-2">
                 <DialogClose asChild>
-                  <Button variant="outline" onClick={() => setStoreToDelete(null)}>No</Button>
+                  <Button variant="outline" onClick={() => setStoreToDelete(null)} disabled={isDeleting}>No</Button>
                 </DialogClose>
-                <Button variant="destructive" onClick={handleDeleteStore}>Yes</Button>
+                <Button variant="destructive" onClick={handleDeleteStore} disabled={isDeleting}>
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    'Yes'
+                  )}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -754,3 +780,4 @@ export const StoreManagement = () => {
     </TooltipProvider>
   );
 };
+
