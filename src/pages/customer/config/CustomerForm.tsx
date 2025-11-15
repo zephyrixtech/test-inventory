@@ -474,15 +474,12 @@ export default function CustomerForm() {
         shippingAddress: data.shippingAddress || '',
         contactPerson: data.contactPerson || '',
         taxNumber: data.taxNumber || '',
-        status: data.status,
-        company: companyId || ''
+        status: data.status
       };
 
       if (isEditing && id) {
-        // Update existing customer
         const updatePayload: UpdateCustomerPayload = {
-          ...customerPayload,
-          company: undefined // Remove company from update payload
+          ...customerPayload
         };
         
         const response = await customerService.updateCustomer(id, updatePayload);
@@ -491,14 +488,14 @@ export default function CustomerForm() {
         
         toast.success('Customer updated successfully!');
       } else {
-        // Get the generated customer ID
         const nextCustomerId = localStorage.getItem('nextCustomerId') || generateCustomerId();
         
-        // Add customerId to the payload for creation
         const createPayload: CreateCustomerPayload = {
           ...customerPayload,
-          customerId: nextCustomerId
-        } as CreateCustomerPayload;
+          customerId: nextCustomerId,
+          name: data.name, 
+          status: data.status 
+        };
         
         const response = await customerService.createCustomer(createPayload);
         
