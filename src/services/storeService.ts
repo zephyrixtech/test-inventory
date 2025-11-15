@@ -23,6 +23,16 @@ export interface Store {
   phone?: string;
   email?: string;
   address?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  ifscCode?: string;
+  ibanCode?: string;
+  taxCode?: string;
+  directPurchaseAllowed?: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -44,6 +54,16 @@ export interface CreateStorePayload {
   phone?: string;
   email?: string;
   address?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  ifscCode?: string;
+  ibanCode?: string;
+  taxCode?: string;
+  directPurchaseAllowed?: boolean;
 }
 
 export interface UpdateStorePayload extends Partial<CreateStorePayload> {
