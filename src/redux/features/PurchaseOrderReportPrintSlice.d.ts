@@ -1,4 +1,4 @@
-import { Selector } from '@reduxjs/toolkit';
+import { Selector, ActionCreatorWithPayload } from '@reduxjs/toolkit';
 
 interface ReportConfigs {
   'purchase-order': Record<string, any>;
@@ -14,6 +14,11 @@ interface PrintState {
   statusMessages: Record<string, string>;
   reportConfigs: ReportConfigs;
 }
+
+export const setPrintData: ActionCreatorWithPayload<any, string>;
+export const clearPrintData: ActionCreatorWithPayload<any, string>;
+export const updateStatusMessages: ActionCreatorWithPayload<any, string>;
+export const setReportConfigs: ActionCreatorWithPayload<any, string>;
 
 export const selectPrintData: Selector<PrintState, any>;
 export const selectSelectedReportType: Selector<PrintState, string>;

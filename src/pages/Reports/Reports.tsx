@@ -260,14 +260,31 @@ const Reports: React.FC = () => {
   const [allStores, setAllStores] = useState<IStore[]>([])
   const [selectedStores, setSelectedStores] = useState<string[]>([]);
 
-  // Fetch report configurations for the company
+  // Add this interface for the report configs
+  interface ReportConfigs {
+    'purchase-order': {
+      payment_details?: string;
+      remarks?: string;
+      report_footer?: string;
+    };
+    'sales': {
+      remarks?: string;
+      report_footer?: string;
+    };
+    'stock': {
+      remarks?: string;
+      report_footer?: string;
+    };
+  }
+
+  // Update the dispatch usage with proper typing
   const fetchReportConfigs = useCallback(async () => {
     if (!userData?.company_id) return;
 
     try {
       console.log('Fetching report configs for company:', userData.company_id);
       
-      let reportConfigData;
+      let reportConfigData: any[];
       const { data: companyFilteredData, error: reportConfigError } = await supabase
         .from('report_config')
         .select('*')
@@ -296,7 +313,7 @@ const Reports: React.FC = () => {
 
       if (reportConfigData && reportConfigData.length > 0) {
         // Process report configs by category and key
-        const configs = {
+        const configs: ReportConfigs = {
           'purchase-order': {},
           'sales': {},
           'stock': {}
@@ -345,7 +362,7 @@ const Reports: React.FC = () => {
         console.log('Processed report configs:', configs);
         
         // Store in Redux
-        dispatch(setReportConfigs(configs));
+        dispatch(setReportConfigs(configs as any));
       }
     } catch (error) {
       console.error('Error fetching report configs:', error);
@@ -519,7 +536,7 @@ const Reports: React.FC = () => {
       selectedReportType: selectedReportType as ReportType,
       dateRange: dateRange,
       statusMessages: statusMessages
-    }));
+    } as any));
 
     // Navigate to the print preview page
     navigate('/dashboard/report/preview');
