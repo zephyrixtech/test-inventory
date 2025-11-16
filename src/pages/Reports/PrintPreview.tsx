@@ -179,7 +179,7 @@ const PrintPreview: React.FC = () => {
     if (selectedReportType === 'stock' && reportData) {
       return reportData['stock']?.data || [];
     }
-    if (selectedReportType && reportData && selectedReportType in reportData) {
+    if (selectedReportType && reportData && reportData[selectedReportType as keyof typeof reportData]) {
       return (reportData[selectedReportType as keyof typeof reportData] as any)?.data || [];
     }
     return [];

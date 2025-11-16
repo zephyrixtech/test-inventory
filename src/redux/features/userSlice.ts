@@ -5,6 +5,15 @@ interface CompanyData {
   name?: string;
   code?: string;
   currency?: string;
+  description?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  postal_code?: string;
+  phone?: string;
+  tax_percentage?: number;
+  email?: string;
 }
 
 interface UserData {
