@@ -13,11 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { 
   getItemConfigurationById, 
-  createItemConfiguration, 
   updateItemConfiguration, 
-  createMultipleItemConfigurations,
-  getCategories as getBackendCategories,
-  getVendors as getBackendVendors
+  createMultipleItemConfigurations
 } from '@/services/itemService';
 
 // Zod schema for individual field
@@ -129,7 +126,7 @@ const ItemConfigForm = () => {
       setLoading(true);
       const response = await getItemConfigurationById(id);
       
-      const data = response.data;
+      const data = response;
       if (data) {
         reset({
           label: data.name,
@@ -194,11 +191,11 @@ const ItemConfigForm = () => {
         name: field.label,
         description: field.description || '',
         control_type: field.controlType,
-        collection_id: field.controlType === 'Dropdown' ? field.collectionName : null,
-        data_type: field.controlType === 'Textbox' ? field.dataType : null,
+        collection_id: field.controlType === 'Dropdown' ? field.collectionName : undefined,
+        data_type: field.controlType === 'Textbox' && field.dataType !== null ? field.dataType : undefined,
         sequence: field.order,
         max_length: field.controlType === 'Textbox' && field.dataType === 'text' ? field.maxLength : 0,
-        item_unit_id: field.dataType === 'unit' ? field.measurementType : null,
+        item_unit_id: field.dataType === 'unit' ? field.measurementType : undefined,
         is_mandatory: field.isMandatory || false,
       }));
 
@@ -231,11 +228,11 @@ const ItemConfigForm = () => {
         name: data.label,
         description: data.description || '',
         control_type: data.controlType,
-        collection_id: data.controlType === 'Dropdown' ? data.collectionName : null,
-        data_type: data.controlType === 'Textbox' ? data.dataType : null,
+        collection_id: data.controlType === 'Dropdown' ? data.collectionName : undefined,
+        data_type: data.controlType === 'Textbox' && data.dataType !== null ? data.dataType : undefined,
         sequence: data.order,
         max_length: data.controlType === 'Textbox' && data.dataType === 'text' ? data.maxLength : 0,
-        item_unit_id: data.dataType === 'unit' ? data.measurementType : null,
+        item_unit_id: data.dataType === 'unit' ? data.measurementType : undefined,
         is_mandatory: data.isMandatory || false,
       };
 

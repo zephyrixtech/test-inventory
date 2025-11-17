@@ -187,7 +187,7 @@ export default function AddStoreForm() {
   const [isCheckingCentralStore, setIsCheckingCentralStore] = useState(!id);
   const [formError, setFormError] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
+  // const [userId, setUserId] = useState<string | null>(null); // Unused variable
   const [initialCheckComplete, setInitialCheckComplete] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -259,7 +259,7 @@ export default function AddStoreForm() {
         const userData: UserData = JSON.parse(userDataString);
         if (userData.company_id) {
           setCompanyId(userData.company_id);
-          setUserId(userData.id);
+          // setUserId(userData.id); // Unused variable
         } else {
           throw new Error("Company ID not found in user data");
         }
@@ -657,10 +657,10 @@ useEffect(() => {
 
     try {
       if (isEditing) {
-        const response = await storeService.updateStore(id!, cleanedData);
+        await storeService.updateStore(id!, cleanedData);
         toast.success("Store updated successfully", { position: "top-right" });
       } else {
-        const response = await storeService.createStore(cleanedData);
+        await storeService.createStore(cleanedData);
         toast.success("Store created successfully", { position: "top-right" });
       }
       navigate("/dashboard/storeManagement");

@@ -26,11 +26,11 @@ export interface ItemConfigData {
   name: string;
   description?: string;
   control_type: 'Textbox' | 'Dropdown' | 'Textarea';
-  collection_id?: string;
+  collection_id?: string | null;
   data_type?: 'text' | 'number' | 'unit';
   sequence: number;
   max_length?: number;
-  item_unit_id?: string;
+  item_unit_id?: string | null;
   is_mandatory: boolean;
 }
 

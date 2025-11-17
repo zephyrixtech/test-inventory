@@ -117,10 +117,11 @@ const VendorsPage = () => {
   const sortedVendors = useMemo(() => {
     if (!sortConfig.field || !sortConfig.order) return vendors;
     const sorted = [...vendors].sort((a, b) => {
-      const valueA = (a as Record<string, unknown>)[sortConfig.field!];
-      const valueB = (b as Record<string, unknown>)[sortConfig.field!];
+      const valueA = (a as unknown as Record<string, unknown>)[sortConfig.field!];
+      const valueB = (b as unknown as Record<string, unknown>)[sortConfig.field!];
 
       if (valueA === valueB) return 0;
+      if (valueA == null || valueB == null) return valueA == null ? -1 : 1;
       const comparator = valueA > valueB ? 1 : -1;
       return sortConfig.order === 'asc' ? comparator : -comparator;
     });
@@ -147,7 +148,7 @@ const VendorsPage = () => {
 
   const handleCreateVendor = async () => {
     try {
-      await vendorService.create(formState);
+      await vendorService.create(formState as Partial<Vendor>);
       toast.success('Vendor created successfully');
       setIsDialogOpen(false);
       resetForm();

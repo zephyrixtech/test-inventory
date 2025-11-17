@@ -199,10 +199,11 @@ export const Inventory = () => {
   const sortedInventory = useMemo(() => {
     if (!sortConfig.field || !sortConfig.order) return inventory;
     const sorted = [...inventory].sort((a, b) => {
-      const valueA = (a as Record<string, unknown>)[sortConfig.field!];
-      const valueB = (b as Record<string, unknown>)[sortConfig.field!];
+      const valueA = (a as unknown as Record<string, unknown>)[sortConfig.field!];
+      const valueB = (b as unknown as Record<string, unknown>)[sortConfig.field!];
 
       if (valueA === valueB) return 0;
+      if (valueA == null || valueB == null) return valueA == null ? -1 : 1;
       const comparator = valueA > valueB ? 1 : -1;
       return sortConfig.order === 'asc' ? comparator : -comparator;
     });
@@ -252,8 +253,8 @@ export const Inventory = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((category) => (
-                  <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+                {categories.filter(category => category.id || category._id).map((category) => (
+                  <SelectItem key={category.id || category._id} value={category.id || category._id || ''}>{category.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
