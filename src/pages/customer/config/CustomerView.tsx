@@ -17,9 +17,6 @@ import {
   AlertCircle,
   Loader2,
   Building,
-  MessageSquare,
-  Bell,
-  BellOff,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { customerService } from '@/services/customerService'; // Added customerService import
@@ -131,9 +128,6 @@ export default function CustomerView() {
   const [error, setError] = useState<string | null>(null);
 
   // Get user data from localStorage
-  const userData = localStorage.getItem('userData');
-  const user = userData ? JSON.parse(userData) : null;
-  const companyId = user?.company_id;
 
   useEffect(() => {
     if (!id) {

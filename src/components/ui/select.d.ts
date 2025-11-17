@@ -19,6 +19,7 @@ interface SelectItemProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 interface SelectValueProps {
   placeholder?: string;
+  children?: React.ReactNode;
 }
 
 declare const Select: React.FC<SelectProps>;

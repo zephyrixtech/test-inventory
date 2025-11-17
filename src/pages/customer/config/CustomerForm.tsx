@@ -37,7 +37,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 // Removed supabase import
-import { customerService, type Customer, type CreateCustomerPayload, type UpdateCustomerPayload } from '@/services/customerService'; // Added customerService import
+import { customerService, type CreateCustomerPayload, type UpdateCustomerPayload } from '@/services/customerService'; // Added customerService import
 
 // Database types
 // type CustomerInsert = Database['public']['Tables']['customer_mgmt']['Insert'];
@@ -292,15 +292,12 @@ export default function CustomerForm() {
   const userData = localStorage.getItem('userData');
   const user = userData ? JSON.parse(userData) : null;
   const companyId = user?.company_id;
-  const userId = user?.id;
 
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
   const isEditing = Boolean(id);
   const [isLoading, setIsLoading] = useState(false);
-  const [_, setError] = useState('');
-  const [currentCustomerId, setCurrentCustomerId] = useState<string | null>('');
-
+  const [, setError] = useState('');
   // Create default values dynamically
   const createDefaultValues = (): CustomerFormValues => {
     const defaults: any = {};
@@ -422,7 +419,6 @@ export default function CustomerForm() {
           });
 
           reset(formData);
-          setCurrentCustomerId(customer.customerId);
         } catch (err) {
           setError('Failed to load customer data');
           toast.error('Failed to load customer data');

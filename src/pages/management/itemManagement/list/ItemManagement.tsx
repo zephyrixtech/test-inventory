@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Package, Plus, Pencil, Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import ItemForm from '../config/ItemForm';
+import ItemForm, { ItemFormData } from '../config/ItemForm';
 import { getItems, getCategories, getVendors } from '@/services/itemService';
 
 interface Item {
@@ -19,28 +19,6 @@ interface Item {
     sellingPrice: number;
     minStockLevel: number;
     maxStockLevel: number;
-}
-
-// Define the form data structure to match ItemForm's expected props
-interface ItemFormData {
-    id?: string;
-    name: string;
-    description: string;
-    categoryId: string;
-    manufacturer: string;
-    model: string;
-    unitPrice: number;
-    sellingPrice: number;
-    minStockLevel: number;
-    maxStockLevel: number;
-    reorderLevel?: number;
-    maxLevel?: number;
-    unitOfMeasure?: string;
-    vendorId?: string;
-    currency?: 'INR' | 'AED';
-    quantity?: number;
-    purchaseDate?: string;
-    status?: string;
 }
 
 const ItemManagement = () => {
@@ -361,19 +339,6 @@ const ItemManagement = () => {
                                                     variant="ghost"
                                                     size="sm"
                                                     onClick={() => {
-                                                        // Convert Item to ItemFormData for editing
-                                                        const itemFormData: ItemFormData = {
-                                                            id: item.id,
-                                                            name: item.name,
-                                                            description: item.description,
-                                                            categoryId: item.category,
-                                                            manufacturer: item.manufacturer,
-                                                            model: item.model,
-                                                            unitPrice: item.unitPrice,
-                                                            sellingPrice: item.sellingPrice,
-                                                            minStockLevel: item.minStockLevel,
-                                                            maxStockLevel: item.maxStockLevel
-                                                        };
                                                         setSelectedItem(item);
                                                         setIsEditDialogOpen(true);
                                                     }}

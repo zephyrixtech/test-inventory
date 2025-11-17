@@ -82,20 +82,6 @@ interface SelectedAlternative {
   item_name: string;
 }
 
-interface ImageMetadata {
-  name: string;
-  type: string;
-  size: number;
-  path: string;
-}
-
-interface VideoMetadata {
-  name: string;
-  type: string;
-  size: number;
-  path: string;
-}
-
 interface IUnit {
   id: string;
   name: string;
@@ -106,37 +92,11 @@ interface ICategoryMaster {
   name: string;
 }
 
-interface IRole {
-  id: string;
-  name: string;
-}
-
-interface ISystemLog {
-  id: string;
-  log: string;
-}
-
-interface ICompany {
-  id: string;
-  name: string;
-}
-
-interface IStore {
-  id: string;
-  name: string;
-}
-
 interface IUser {
   id: string;
   first_name: string | null;
   last_name: string | null;
   company_id: string | null;
-}
-
-interface ICollection {
-  id: string;
-  table_name: string;
-  display_name: string | null;
 }
 
 // Debounce hook
@@ -329,7 +289,7 @@ const InventoryForm = () => {
   const [initialFormValues, setInitialFormValues] = useState<InventoryFormValues | null>(null);
   const [initialImage1Preview, setInitialImage1Preview] = useState<string | null>(null);
   const [initialImage2Preview, setInitialImage2Preview] = useState<string | null>(null);
-  const [existingAdditionalAttributes, setExistingAdditionalAttributes] = useState<Record<string, any>>({});
+  const [, setExistingAdditionalAttributes] = useState<Record<string, any>>({});
   const [currentCategoryId, setCurrentCategoryId] = useState<string | null>(null);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   // const [categoryRetryCount, setCategoryRetryCount] = useState(0);
@@ -453,7 +413,7 @@ const InventoryForm = () => {
       }
     };
 
-    const fetchCollections = async (configurators: ITemsConfig[]) => {
+    const fetchCollections = async () => {
       try {
         // For now, we'll skip collections fetching as it requires additional backend endpoints
         // This would need to be implemented in the backend API
@@ -482,8 +442,8 @@ const InventoryForm = () => {
     };
 
     const initFetch = async () => {
-      const configs = await fetchConfigurators();
-      await Promise.all([fetchCollections(configs), fetchUnits()]);
+      await fetchConfigurators();
+      await Promise.all([fetchCollections(), fetchUnits()]);
     };
     initFetch();
   }, [companyId]);
@@ -716,19 +676,6 @@ const InventoryForm = () => {
     setSelectedAlternativesWithNames((prev) => prev.filter((alt) => alt.id !== alternativeId));
   };
 
-  // Check duplicate item_id
-  const checkDuplicateItemId = async (itemId: string) => {
-    try {
-      // Use our new backend API service instead of Supabase
-      // This would require implementing a duplicate check endpoint in the backend
-      console.log('Skipping duplicate item ID check - needs backend implementation');
-      return false; // For now, assume no duplicates
-    } catch (err: any) {
-      console.error('Error checking duplicate item_id:', err);
-      return false;
-    }
-  };
-
   // Check for unsaved changes
   const hasUnsavedChanges = (): boolean => {
     if (isViewing) return false; // No unsaved changes in view mode
@@ -760,11 +707,6 @@ const InventoryForm = () => {
     return false;
   };
 
-  // Video deletion is not implemented for the backend API yet
-  const handleDeleteVideo = async (filePath: string) => {
-    console.log('Skipping video deletion - needs backend implementation');
-  };
-
   // Form submission
   const onSubmit: SubmitHandler<InventoryFormValues> = async (data) => {
     if (isViewing) return; // Prevent submission in view mode
@@ -775,12 +717,6 @@ const InventoryForm = () => {
       if (!companyId) {
         throw new Error('Company ID is not available. Please ensure you are logged in.');
       }
-
-      // Skip duplicate check for now as it requires backend implementation
-      // const isDuplicate = await checkDuplicateItemId(data.item_id);
-      // if (isDuplicate) {
-      //   throw new Error('Item ID already exists. Please use a unique ID.');
-      // }
 
       // Prepare the payload for the backend API
       const payload: any = {

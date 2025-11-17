@@ -1,18 +1,3 @@
-declare module "@/components/ui/button" {
-  import * as React from "react";
-  
-  interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-    variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
-    size?: "default" | "sm" | "lg" | "icon";
-    asChild?: boolean;
-  }
-  
-  const Button: React.ForwardRefExoticComponent<ButtonProps & React.RefAttributes<HTMLButtonElement>>;
-  
-  export { Button };
-  export type { ButtonProps };
-}
-
 declare module "@/components/ui/input" {
   import * as React from "react";
   
@@ -59,6 +44,7 @@ declare module "@/components/ui/select" {
   
   interface SelectValueProps {
     placeholder?: string;
+    children?: React.ReactNode;
   }
   
   const Select: React.FC<SelectProps>;

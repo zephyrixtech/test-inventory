@@ -48,7 +48,6 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Download,
   Eye,
   Phone,
   Mail,
@@ -59,6 +58,11 @@ import toast from 'react-hot-toast';
 // Removed exportSupabaseTableToCSV import
 import { Badge } from '@/components/ui/badge';
 import { customerService, type Customer } from '@/services/customerService'; // Added customerService import
+
+const STATUS_OPTIONS: Array<{ value: 'Active' | 'Inactive'; label: string }> = [
+  { value: 'Active', label: 'Active' },
+  { value: 'Inactive', label: 'Inactive' },
+];
 
 // Customer interface matching the database structure
 // interface Customer {
@@ -126,10 +130,6 @@ export const CustomerManagement: React.FC = () => {
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: 'createdAt', order: 'desc' });
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
-  const [statusOptions, setStatusOptions] = useState<Array<{ value: 'Active' | 'Inactive'; label: string }>>([
-    { value: 'Active', label: 'Active' },
-    { value: 'Inactive', label: 'Inactive' }
-  ]);
 
   // Refs to track previous values (same pattern as ItemConfigurator)
   const prevSearchTerm = useRef(searchTerm);
@@ -387,7 +387,7 @@ export const CustomerManagement: React.FC = () => {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Status</SelectItem>
-                          {statusOptions.map((opt) => (
+                          {STATUS_OPTIONS.map((opt) => (
                             <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                           ))}
                         </SelectContent>

@@ -2,7 +2,7 @@ declare module "@/components/ui/dialog" {
   import * as React from "react";
 
   export const Dialog: React.FC<{ children?: React.ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void }>;
-  export const DialogTrigger: React.FC<{ children?: React.ReactNode }>;
+  export const DialogTrigger: React.FC<{ children?: React.ReactNode; asChild?: boolean }>;
   export const DialogPortal: React.FC<{ children?: React.ReactNode }>;
   export const DialogClose: React.FC<React.HTMLAttributes<HTMLButtonElement> & { asChild?: boolean }>;
   export const DialogOverlay: React.FC<React.HTMLAttributes<HTMLDivElement>>;
